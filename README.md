@@ -1,50 +1,62 @@
-# Welcome to your Expo app 👋
+# EvCars - Smart EV Charging
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native (Expo) app for finding and booking EV charging stations, with an Express/MongoDB backend.
 
-## Get started
+## Prerequisites
 
-1. Install dependencies
+- [Node.js](https://nodejs.org/) (v18 or later)
+- [Expo CLI](https://docs.expo.dev/get-started/installation/) (`npm install -g expo-cli`)
+- [Expo Go](https://expo.dev/go) app on your phone
+- A MongoDB Atlas cluster (or local MongoDB instance)
 
-   ```bash
-   npm install
-   ```
+## Setup
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### 1. Configure the backend
 
 ```bash
-npm run reset-project
+cd backend
+cp .env.example .env
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Open `backend/.env` and fill in your values:
 
-## Learn more
+- `MONGODB_URI` — your MongoDB connection string (e.g. `mongodb+srv://user:pass@cluster.mongodb.net/evcars`)
+- `JWT_SECRET` — a random secret string (generate one with `openssl rand -hex 32`)
 
-To learn more about developing your project with Expo, look at the following resources:
+### 3. Install backend dependencies and seed a user
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm install
+```
 
-## Join the community
+Before starting the server, seed an initial user (edit `backend/addUser.js` to set your desired username/password):
 
-Join our community of developers creating universal apps.
+```bash
+node addUser.js
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### 4. Start the backend server
+
+```bash
+npm start
+```
+
+The server will run on `http://localhost:5000`.
+
+### 5. Configure the frontend API URL
+
+Open `config.js` in the project root and set `API_URL` to your backend address:
+
+- **Android Emulator:** `http://10.0.2.2:5000`
+- **iOS Simulator:** `http://localhost:5000`
+- **Physical device:** `http://<YOUR_COMPUTER_IP>:5000` (find your IP with `ipconfig` on Windows or `ifconfig` on Mac/Linux) - IPv4 under your primary internet connection that you are using
+
+### 6. Install frontend dependencies and start the app
+
+```bash
+cd ..
+npm install
+npx expo start
+```
+
+Scan the QR code with Expo Go (Android) or the Camera app (iOS) to open the app on your phone.
