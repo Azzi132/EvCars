@@ -6,7 +6,7 @@
 // Physical Device:   'http://YOUR_COMPUTER_IP:5000'
 //   (Find your IP with: ipconfig on Windows, ifconfig on Mac/Linux)
 // =============================================================
-const API_URL = "http://10.120.96.213:5000";
+const API_URL = "http://172.30.84.207:5000";
 // =============================================================
 
 export default API_URL;

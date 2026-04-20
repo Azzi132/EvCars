@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node server.js",
-    "seed": "node addUser.js"
+    "seed": "node addUser.js",
+    "seed:bookings": "node seedBookings.js",
+    "seed:ab": "node seedScenarioAB.js",
+    "test": "node --test scheduler/__tests__/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
