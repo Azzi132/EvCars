@@ -1,29 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '../contexts/AuthContext';
-import API_URL from '../config';
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import API_URL from "../config";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function LoginScreen() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
   const { token, isLoading, login } = useAuth();
   const router = useRouter();
 
+  // If the user is already logged in skip
   useEffect(() => {
     if (!isLoading && token) {
-      router.replace('/map');
+      router.replace("/map");
     }
   }, [isLoading, token]);
 
@@ -37,32 +39,33 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      setError('Please enter both username and password');
+      setError("Missing either username or password");
       return;
     }
 
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: username.trim(), password }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.message || 'Login failed');
+        setError(data.message || "Login failed");
         setLoading(false);
         return;
       }
 
+      // Save token to skip login next time
       await login(data.token);
-      router.replace('/map');
+      router.replace("/map");
     } catch (err) {
-      setError('Cannot connect to server. Check your network and API URL.');
+      setError("Cannot connect to server.");
       setLoading(false);
     }
   };
@@ -70,7 +73,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View style={styles.card}>
         <Text style={styles.title}>EvCars</Text>
@@ -116,18 +119,18 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
     padding: 20,
   },
   card: {
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 12,
     padding: 30,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -135,45 +138,45 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#2E7D32',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#2E7D32",
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
+    color: "#888",
+    textAlign: "center",
     marginBottom: 30,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     borderRadius: 8,
     padding: 14,
     fontSize: 16,
     marginBottom: 14,
-    backgroundColor: '#FAFAFA',
-    color: '#333',
+    backgroundColor: "#FAFAFA",
+    color: "#333",
   },
   error: {
-    color: '#D32F2F',
+    color: "#D32F2F",
     fontSize: 13,
     marginBottom: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
   button: {
-    backgroundColor: '#2E7D32',
+    backgroundColor: "#2E7D32",
     borderRadius: 8,
     padding: 15,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 6,
   },
   buttonDisabled: {
     opacity: 0.7,
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

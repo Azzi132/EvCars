@@ -1,3 +1,24 @@
+// Greedy + local-swap assignment strategy.
+//
+// Optimal multi-resource scheduling is NP-hard, so we don't try. Instead:
+//
+//   Pass 1 — Sort requests by urgency (most urgent first), break ties on
+//   creation order. Walk that list and give each request its locally
+//   best slot on its locally best candidate charger. Each placement
+//   "commits" — its charger's timeline is updated so later requests
+//   route around it.
+//
+//   Pass 2 — Try pairwise swaps. For every pair of requests already on
+//   the *same* charger, see if swapping their slots lowers the combined
+//   cost. Repeat up to MAX_SWAP_PASSES times or until no improvement.
+//   Same-charger only because that's where the timeline-fit check is
+//   straightforward; cross-charger swaps would need to model two
+//   timelines simultaneously.
+//
+// The greedy step alone is good enough for most situations. The swap
+// passes catch the cases where high-urgency requests grab slots that
+// later turn out to be more useful to someone else.
+
 const {
   chargingDurationMinutes,
   urgencyScore,
@@ -13,12 +34,16 @@ const {
 const MAX_SWAP_PASSES = 3;
 
 function assign(requests, externalCommittedBookings, now) {
+  // Per-charger busy timelines. Lazily built on first lookup so we only
+  // pay for the chargers we actually consider.
   const timelines = new Map();
 
   const requestsSorted = [...requests].sort((a, b) => {
     const ua = urgencyScore(a, now);
     const ub = urgencyScore(b, now);
     if (ub !== ua) return ub - ua;
+    // Tie-break: older booking first, so users aren't perpetually
+    // jumped by newer requests with the same urgency.
     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
   });
 
@@ -31,6 +56,7 @@ function assign(requests, externalCommittedBookings, now) {
     return timelines.get(chargerId);
   };
 
+  // Pass 1: greedy first-fit-by-cost.
   for (const req of requestsSorted) {
     const best = findBestAssignment(req, getTimeline, now);
     if (!best) {
@@ -45,6 +71,7 @@ function assign(requests, externalCommittedBookings, now) {
     });
   }
 
+  // Pass 2: pairwise local swaps.
   for (let pass = 0; pass < MAX_SWAP_PASSES; pass++) {
     let improved = false;
     for (let i = 0; i < requestsSorted.length; i++) {
@@ -71,12 +98,19 @@ function assign(requests, externalCommittedBookings, now) {
         }
       }
     }
+    // Early exit if a full pass produced no swaps — further passes
+    // can't improve things.
     if (!improved) break;
   }
 
   return Array.from(results.values());
 }
 
+// Search every (candidate charger, slot) pair for `request` and return
+// the one with the lowest cost. We search slots from "now rounded up to
+// the next 15 min" out to 6 hours past the deadline — past the deadline
+// is allowed but expensive (see DEADLINE_PENALTY in urgency.js), and
+// occasionally the only feasible option.
 function findBestAssignment(request, getTimeline, now) {
   const deadlineMs = new Date(request.deadline).getTime();
   const earliestStart = roundUpToSlot(now);
@@ -128,6 +162,8 @@ function findBestAssignment(request, getTimeline, now) {
   return best;
 }
 
+// Add a freshly-placed slot to a charger's timeline so subsequent
+// placements see it. Mutates `timeline` in place.
 function commit(timeline, assignment, bookingId) {
   timeline.push({
     startMs: new Date(assignment.startTime).getTime(),
@@ -137,7 +173,11 @@ function commit(timeline, assignment, bookingId) {
   timeline.sort((a, b) => a.startMs - b.startMs);
 }
 
+// Attempt to move request I into J's slot and J into I's. If both fit
+// and the new combined cost is strictly lower (epsilon avoids accepting
+// no-op swaps caused by floating-point noise), commit the swap.
 function trySwap(reqI, reqJ, assignI, assignJ, getTimeline, now) {
+  // Same-charger only — see file header for why.
   if (assignI.chargerId !== assignJ.chargerId) return null;
 
   const timeline = getTimeline(assignI.chargerId);
@@ -149,6 +189,9 @@ function trySwap(reqI, reqJ, assignI, assignJ, getTimeline, now) {
   if (!iAtJ || !jAtI) return null;
 
   const iFits = fitsInTimeline(timeline, iAtJ.startMs, iAtJ.endMs, idI);
+  // For J's check, build a hypothetical timeline that already has I in
+  // its new spot — otherwise J would still see I's old slot and might
+  // wrongly conclude there's no room.
   const jFits = fitsInTimeline(
     timeline.filter((t) => t.bookingId !== idJ).concat([
       { startMs: iAtJ.startMs, endMs: iAtJ.endMs, bookingId: idI },
@@ -161,6 +204,7 @@ function trySwap(reqI, reqJ, assignI, assignJ, getTimeline, now) {
 
   const currentTotal = assignI._totalCost + assignJ._totalCost;
   const swappedTotal = iAtJ._totalCost + jAtI._totalCost;
+  // 1e-9 epsilon: only accept genuine improvements, not float jitter.
   if (swappedTotal >= currentTotal - 1e-9) return null;
 
   const oldIslot = timeline.findIndex((t) => t.bookingId === idI);
@@ -173,6 +217,11 @@ function trySwap(reqI, reqJ, assignI, assignJ, getTimeline, now) {
   return { i: iAtJ, j: jAtI };
 }
 
+// Build a full assignment for `request` that starts at `slotTemplate`'s
+// start time on `slotTemplate`'s charger. End time is recomputed because
+// charging duration depends on the *requesting* charger's power, which
+// equals the template's power (same charger) but the energy demand may
+// differ between requests.
 function buildCandidate(request, slotTemplate, now) {
   const charger = request.candidateChargers.find(
     (c) => c.id === slotTemplate.chargerId

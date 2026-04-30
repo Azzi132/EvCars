@@ -1,18 +1,18 @@
-import { useState, useEffect } from 'react';
+import * as Location from "expo-location";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   StyleSheet,
-  View,
   Text,
   TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
-import { useAuth } from '../contexts/AuthContext';
-import { fetchNearbyStations } from '../services/stationService';
-import BookingModal from '../components/BookingModal';
-import MyBookingsModal from '../components/MyBookingsModal';
+  View,
+} from "react-native";
+import MapView, { Marker } from "react-native-maps";
+import BookingModal from "../components/BookingModal";
+import MyBookingsModal from "../components/MyBookingsModal";
+import { useAuth } from "../contexts/AuthContext";
+import { fetchNearbyStations } from "../services/stationService";
 
 export default function MapScreen() {
   const [location, setLocation] = useState(null);
@@ -21,20 +21,24 @@ export default function MapScreen() {
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
   const [myBookingsVisible, setMyBookingsVisible] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+
   const { token, isLoading, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!isLoading && !token) {
-      router.replace('/');
+      router.replace("/");
     }
   }, [isLoading, token]);
 
+  // Ask for location permission
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setErrorMsg('Location permission denied. Please enable it in settings.');
+      if (status !== "granted") {
+        setErrorMsg(
+          "Location permission denied. Please enable it in settings.",
+        );
         return;
       }
 
@@ -49,21 +53,21 @@ export default function MapScreen() {
       try {
         const nearby = await fetchNearbyStations(
           loc.coords.latitude,
-          loc.coords.longitude
+          loc.coords.longitude,
         );
         setStations(nearby);
       } catch (err) {
-        console.warn('Failed to load nearby stations:', err);
+        console.warn("Failed to load nearby stations:", err);
       }
     })();
   }, []);
 
   const handleLogout = async () => {
     await logout();
-    router.replace('/');
+    router.replace("/");
   };
 
-  if (isLoading || (!token && !isLoading)) {
+  if (isLoading || !token) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#2E7D32" />
@@ -108,6 +112,7 @@ export default function MapScreen() {
           />
         ))}
       </MapView>
+
       <View style={styles.header}>
         <Text style={styles.headerTitle}>EvCars</Text>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -121,6 +126,7 @@ export default function MapScreen() {
       >
         <Text style={styles.myBookingsText}>📅 Bookings</Text>
       </TouchableOpacity>
+
       {selectedStation ? (
         <View style={styles.detailCard}>
           <TouchableOpacity
@@ -132,14 +138,16 @@ export default function MapScreen() {
 
           <Text style={styles.detailTitle}>{selectedStation.name}</Text>
           {selectedStation.operator ? (
-            <Text style={styles.detailSubtitle}>{selectedStation.operator}</Text>
+            <Text style={styles.detailSubtitle}>
+              {selectedStation.operator}
+            </Text>
           ) : null}
 
           {(selectedStation.address || selectedStation.town) && (
             <Text style={styles.detailText}>
               {[selectedStation.address, selectedStation.town]
                 .filter(Boolean)
-                .join(', ')}
+                .join(", ")}
             </Text>
           )}
 
@@ -216,18 +224,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     left: 20,
     right: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.95)",
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
@@ -235,129 +243,129 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2E7D32',
+    fontWeight: "bold",
+    color: "#2E7D32",
   },
   logoutButton: {
-    backgroundColor: '#E8E8E8',
+    backgroundColor: "#E8E8E8",
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 14,
   },
   logoutText: {
-    color: '#555',
+    color: "#555",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   myBookingsButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 110,
     right: 20,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: "rgba(255,255,255,0.95)",
     borderRadius: 20,
     paddingVertical: 8,
     paddingHorizontal: 14,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 4,
   },
   myBookingsText: {
-    color: '#2E7D32',
+    color: "#2E7D32",
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   centered: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
     padding: 20,
   },
   loadingText: {
     marginTop: 12,
-    color: '#666',
+    color: "#666",
     fontSize: 14,
   },
   errorText: {
-    color: '#D32F2F',
+    color: "#D32F2F",
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   bookButton: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 40,
     left: 20,
     right: 20,
-    backgroundColor: '#2E7D32',
+    backgroundColor: "#2E7D32",
     borderRadius: 12,
     paddingVertical: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 4,
   },
   bookButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   detailCard: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 40,
     left: 20,
     right: 20,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
     paddingRight: 44,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 6,
   },
   closeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 10,
     right: 10,
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#F0F0F0',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#F0F0F0",
+    justifyContent: "center",
+    alignItems: "center",
   },
   closeButtonText: {
     fontSize: 20,
-    color: '#555',
+    color: "#555",
     lineHeight: 22,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   detailTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#2E7D32',
+    fontWeight: "700",
+    color: "#2E7D32",
     marginBottom: 2,
   },
   detailSubtitle: {
     fontSize: 14,
-    color: '#555',
+    color: "#555",
     marginBottom: 4,
   },
   detailText: {
     fontSize: 13,
-    color: '#666',
+    color: "#666",
     marginTop: 2,
   },
   detailRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginTop: 10,
     marginBottom: 4,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   detailItem: {
     marginRight: 20,
@@ -365,13 +373,13 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 11,
-    color: '#999',
-    textTransform: 'uppercase',
+    color: "#999",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   detailValue: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
 });

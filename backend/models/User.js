@@ -1,3 +1,7 @@
+// Mongoose schema for application users.
+// Passwords are stored as bcrypt hashes (hashing happens at the call site,
+// e.g. addUser.js) — never store the plaintext.
+
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({

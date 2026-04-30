@@ -1,3 +1,16 @@
+// Two-user A/B scenario that pins down whether the scheduler is actually
+// preference-aware or just first-come-first-served.
+//
+//   User A: created 2 minutes ago, very price-sensitive, 8h deadline.
+//   User B: created 1 minute later, deadline-sensitive, 2h deadline.
+//
+// FCFS would hand the first available slot to A (created first).
+// A preference-aware scheduler should give it to B because B's urgency
+// score is much higher (tighter deadline + heavier deadline weight).
+//
+// Run with `npm run seed:ab` and then check via `/api/bookings/mine`
+// (or the scheduler tests) which booking ends up scheduled first.
+
 require("dotenv").config();
 const mongoose = require("mongoose");
 const User = require("./models/User");

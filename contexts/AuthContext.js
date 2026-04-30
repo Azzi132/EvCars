@@ -1,5 +1,13 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// App-wide auth state. Wraps the whole app in _layout.jsx so any screen
+// can call useAuth() to read the current token or log the user in/out.
+//
+// The token is mirrored in AsyncStorage so it survives app restarts.
+// `isLoading` is true while we read that storage on first mount, which
+// lets screens like LoginScreen avoid flashing the form before we know
+// whether the user is already signed in.
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createContext, useContext, useEffect, useState } from "react";
 
 const AuthContext = createContext(null);
 
@@ -8,19 +16,19 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    AsyncStorage.getItem('token').then(stored => {
+    AsyncStorage.getItem("token").then((stored) => {
       if (stored) setToken(stored);
       setIsLoading(false);
     });
   }, []);
 
   const login = async (newToken) => {
-    await AsyncStorage.setItem('token', newToken);
+    await AsyncStorage.setItem("token", newToken);
     setToken(newToken);
   };
 
   const logout = async () => {
-    await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem("token");
     setToken(null);
   };
 

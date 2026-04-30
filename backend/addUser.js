@@ -1,13 +1,16 @@
+// One-shot script to create a test user in MongoDB.
+// Run with `npm run seed` (or `node addUser.js`). Idempotent — if the user
+// already exists it just exits without touching anything.
+
 require("dotenv").config();
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const User = require("./models/User");
 
-// Change this to whatev
+// Change these if you want a different test account.
 const USERNAME = "admin";
 const PASSWORD = "password123";
 
-// Just console "node addUser.js" to add a specific user quickly
 async function seedUser() {
   await mongoose.connect(process.env.MONGODB_URI);
 
@@ -15,6 +18,8 @@ async function seedUser() {
   if (existing) {
     console.log(`User "${USERNAME}" already exists, skipping.`);
   } else {
+    // bcrypt cost factor 10 is a reasonable default for dev — login still
+    // feels instant and brute-forcing the hash is non-trivial.
     const hashedPassword = await bcrypt.hash(PASSWORD, 10);
     await User.create({ username: USERNAME, password: hashedPassword });
     console.log(`User "${USERNAME}" created successfully.`);

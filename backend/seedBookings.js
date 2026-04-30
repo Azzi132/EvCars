@@ -1,3 +1,12 @@
+// Demo seeder for the booking flow.
+//
+// Wipes admin's existing bookings and inserts two pending requests with
+// different priorities — one urgent-ish, one flexible & price-sensitive
+// — so you can watch the scheduler turn them into concrete slots after
+// it next runs. Useful for eyeballing the scheduler in dev.
+//
+// Run with `npm run seed:bookings` (after `npm run seed` to create admin).
+
 require("dotenv").config();
 const mongoose = require("mongoose");
 const User = require("./models/User");

@@ -1,3 +1,10 @@
+// Modal that lists the user's active bookings with live status updates.
+//
+// While visible we re-fetch every 5 seconds so the badge can flip from
+// "Scheduling…" to "Scheduled" (or "No slot found") without the user
+// having to pull-to-refresh. Polling is cheap because the /mine endpoint
+// only returns the user's not-yet-finished bookings.
+
 import { useEffect, useState } from 'react';
 import {
   Modal,
@@ -10,6 +17,9 @@ import {
 } from 'react-native';
 import { getMyBookings, cancelBooking } from '../services/bookingService';
 
+// Single source of truth for the badge label, pill colour, and the
+// coloured stripe on the left edge of each card. Add a new status here
+// and the UI handles it everywhere.
 const STATUS_META = {
   pending: { label: 'Scheduling…', color: '#9E9E9E', accent: '#BDBDBD' },
   scheduled: { label: 'Scheduled', color: '#2E7D32', accent: '#2E7D32' },
@@ -19,6 +29,8 @@ const STATUS_META = {
   infeasible: { label: 'No slot found', color: '#B71C1C', accent: '#D32F2F' },
 };
 
+// "Today" / "Tomorrow" / "Mon, Apr 29" — friendlier than always showing
+// the date and matches what users expect from native calendar UIs.
 function formatDateLabel(d) {
   const now = new Date();
   const sameDay = (a, b) =>
@@ -62,6 +74,9 @@ export default function MyBookingsModal({ visible, onClose, token }) {
     }
   };
 
+  // Reload immediately on open, then poll every 5s while open. The
+  // cleanup tears the interval down when the modal closes or `token`
+  // changes (e.g. the user logged out from another screen).
   useEffect(() => {
     if (!visible) return;
     reload();
@@ -72,6 +87,8 @@ export default function MyBookingsModal({ visible, onClose, token }) {
   const handleCancel = async (id) => {
     try {
       await cancelBooking(id, token);
+      // Reload right away so the cancelled booking disappears from the
+      // list (the backend filters cancelled bookings out of /mine).
       await reload();
     } catch (err) {
       console.warn('Failed to cancel:', err);
@@ -127,9 +144,16 @@ export default function MyBookingsModal({ visible, onClose, token }) {
   );
 }
 
+// Single booking row. Looks slightly different depending on whether the
+// scheduler has assigned a concrete slot yet — without an assignment we
+// show the original request (energy + deadline); with one we show the
+// chosen charger, time range, and estimated cost.
 function BookingCard({ booking, onCancel }) {
   const meta = STATUS_META[booking.status] || STATUS_META.pending;
   const hasAssignment = booking.assignment && booking.assignment.startTime;
+  // Cancellation is only meaningful before the charge starts. The
+  // backend enforces this too, but hiding the button avoids a failed
+  // request and an unexplained "no change" experience.
   const canCancel =
     booking.status === 'pending' || booking.status === 'scheduled';
 
