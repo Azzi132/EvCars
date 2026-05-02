@@ -6,16 +6,15 @@
 //   2. How long you're willing to wait — chip selection mapping to
 //      `maxWaitHours`. This *is* the user's deadline; the scheduler must
 //      finish charging within this window or the booking goes infeasible.
-//   3. Two priority weights — Cheap electricity vs. Eco-friendly. They
-//      auto-normalise to a probability split (e.g. 70/30), so the user
-//      never has to think about whether they "add up."
+//   3. Two priority toggles — Cheap electricity and Eco-friendly. Either,
+//      both, or neither can be on; BookingModal collapses them into the
+//      {price, co2} weights the backend expects.
 //
 // We don't show a deadline date picker here. The wait-window chips are
 // easier to reason about ("within 2 hours") and they cover the realistic
 // range — if you need a charge in two days, that's not a use case the
 // app is built for.
 
-import { useMemo } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -25,7 +24,6 @@ import {
   View,
 } from "react-native";
 import styles from "./styles";
-import WeightRow from "./WeightRow";
 
 const ENERGY_PRESETS = [10, 20, 35, 60];
 const WAIT_OPTIONS = [
@@ -42,26 +40,16 @@ export default function PreferencesStep({
   setEnergyKWh,
   maxWaitHours,
   setMaxWaitHours,
-  wPrice,
-  setWPrice,
-  wCo2,
-  setWCo2,
+  cheapOn,
+  setCheapOn,
+  ecoOn,
+  setEcoOn,
   error,
   submitting,
   onBack,
   onClose,
   onSubmit,
 }) {
-  // Normalised weights for the % readout. The backend's pre-validate hook
-  // does the same normalisation, but we mirror it here so the UI shows
-  // the actual ratio the scheduler will see. Falls back to 50/50 if the
-  // user somehow zeroed both bars.
-  const normalised = useMemo(() => {
-    const sum = wPrice + wCo2;
-    if (sum <= 0) return { price: 0.5, co2: 0.5 };
-    return { price: wPrice / sum, co2: wCo2 / sum };
-  }, [wPrice, wCo2]);
-
   return (
     <>
       <Header onBack={onBack} onClose={onClose} />
@@ -125,22 +113,26 @@ export default function PreferencesStep({
         <Text style={[styles.sectionLabel, { marginTop: 20 }]}>
           What matters to you?
         </Text>
-        <Text style={styles.sectionHint}>
-          Tap a priority to make it matter more. Weights auto-normalise so
-          they always add up to 100%.
-        </Text>
-        <WeightRow
-          label={`Cheap electricity  (${(normalised.price * 100).toFixed(0)}%)`}
-          value={wPrice}
-          onChange={setWPrice}
-          color="#2E7D32"
-        />
-        <WeightRow
-          label={`Eco-friendly (lower kW)  (${(normalised.co2 * 100).toFixed(0)}%)`}
-          value={wCo2}
-          onChange={setWCo2}
-          color="#1565C0"
-        />
+        <View style={styles.chipRow}>
+          <TouchableOpacity
+            style={[styles.chip, cheapOn && styles.chipActive]}
+            onPress={() => setCheapOn((v) => !v)}
+          >
+            <Text
+              style={[styles.chipText, cheapOn && styles.chipTextActive]}
+            >
+              Cheap electricity
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.chip, ecoOn && styles.chipActive]}
+            onPress={() => setEcoOn((v) => !v)}
+          >
+            <Text style={[styles.chipText, ecoOn && styles.chipTextActive]}>
+              Eco-friendly
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {error ? <Text style={styles.errorInline}>{error}</Text> : null}
       </ScrollView>
@@ -150,7 +142,7 @@ export default function PreferencesStep({
           styles.primaryButton,
           submitting && styles.primaryButtonDisabled,
         ]}
-        onPress={() => onSubmit(normalised)}
+        onPress={() => onSubmit()}
         disabled={submitting}
       >
         {submitting ? (

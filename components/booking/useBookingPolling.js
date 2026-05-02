@@ -18,6 +18,7 @@
 //   error:    error message string when outcome is "error" or "timeout"
 
 import { useEffect, useState } from "react";
+import { useApiErrorHandler } from "../../contexts/AuthContext";
 import { getBookingById } from "../../services/bookingService";
 
 const POLL_INTERVAL_MS = 2000;
@@ -28,6 +29,7 @@ export default function useBookingPolling(pendingBookingId, token) {
   const [outcome, setOutcome] = useState(null);
   const [booking, setBooking] = useState(null);
   const [error, setError] = useState(null);
+  const handleApiError = useApiErrorHandler();
 
   useEffect(() => {
     // Reset whenever we start a new booking.
@@ -67,6 +69,13 @@ export default function useBookingPolling(pendingBookingId, token) {
         setTimeout(poll, POLL_INTERVAL_MS);
       } catch (err) {
         if (cancelled) return;
+        // A 401 means the token is dead — no amount of retrying will help.
+        // Hand off to the auth handler (which logs out + bounces to login)
+        // and stop polling.
+        if (err && err.status === 401) {
+          await handleApiError(err);
+          return;
+        }
         // Tolerate transient network blips — only surface the error if
         // the API has failed several times in a row.
         if (attempts > NETWORK_ATTEMPTS_BEFORE_GIVING_UP) {
@@ -82,7 +91,7 @@ export default function useBookingPolling(pendingBookingId, token) {
     return () => {
       cancelled = true;
     };
-  }, [pendingBookingId, token]);
+  }, [pendingBookingId, token, handleApiError]);
 
   return { outcome, booking, error };
 }

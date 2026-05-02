@@ -7,7 +7,11 @@
       "Bash(sudo sh *)",
       "Bash(/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe *)",
       "Read(//proc/2889/net/**)",
-      "Bash(awk '$4 ~ /:5000$/')"
+      "Bash(awk '$4 ~ /:5000$/')",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:openchargemap.org)",
+      "WebFetch(domain:api.openchargemap.io)"
     ]
   }
 }

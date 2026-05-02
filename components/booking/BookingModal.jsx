@@ -20,6 +20,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Modal, View } from "react-native";
+import { useApiErrorHandler } from "../../contexts/AuthContext";
 import { createBooking } from "../../services/bookingService";
 import PreferencesStep from "./PreferencesStep";
 import ResultStep from "./ResultStep";
@@ -46,15 +47,17 @@ export default function BookingModal({
   const [selectedStation, setSelectedStation] = useState(null);
   const [energyKWh, setEnergyKWh] = useState("20");
   const [maxWaitHours, setMaxWaitHours] = useState(2);
-  // Two weights, both starting at 0.5 = an even split. They'll be
-  // normalised on submit, so the values themselves don't have to add
-  // up to anything.
-  const [wPrice, setWPrice] = useState(0.5);
-  const [wCo2, setWCo2] = useState(0.5);
+  // Two independent priority toggles. Either, both, or neither can be on:
+  //   cheap only → {price:1, co2:0}
+  //   eco only   → {price:0, co2:1}
+  //   both/none  → balanced 50/50
+  const [cheapOn, setCheapOn] = useState(false);
+  const [ecoOn, setEcoOn] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [pendingBookingId, setPendingBookingId] = useState(null);
+  const handleApiError = useApiErrorHandler();
 
   // Show only the 5 closest stations.
   const nearestStations = useMemo(() => {
@@ -72,8 +75,8 @@ export default function BookingModal({
     setSelectedStation(null);
     setEnergyKWh("20");
     setMaxWaitHours(2);
-    setWPrice(0.5);
-    setWCo2(0.5);
+    setCheapOn(false);
+    setEcoOn(false);
     setError(null);
     setPendingBookingId(null);
   }, [visible]);
@@ -101,13 +104,22 @@ export default function BookingModal({
 
   // ---- submit ----------------------------------------------------------
 
-  const handleSubmit = async (normalisedWeights) => {
+  const handleSubmit = async () => {
     if (!selectedStation) return;
     const kWh = parseFloat(energyKWh);
     if (!kWh || kWh <= 0) {
       setError("Enter a valid energy amount.");
       return;
     }
+
+    // Collapse the two toggles into the {price, co2} weights the backend
+    // expects. Both-on and neither-on both fall through to a balanced split.
+    const preferences =
+      cheapOn && !ecoOn
+        ? { price: 1, co2: 0 }
+        : !cheapOn && ecoOn
+          ? { price: 0, co2: 1 }
+          : { price: 0.5, co2: 0.5 };
 
     // Convert the station's connectors into the candidate-charger shape
     // the backend expects. Drop any connector that doesn't report power
@@ -138,16 +150,14 @@ export default function BookingModal({
           candidateChargers,
           energyDemandKWh: kWh,
           maxWaitHours,
-          preferences: {
-            price: normalisedWeights.price,
-            co2: normalisedWeights.co2,
-          },
+          preferences,
         },
         token,
       );
       setPendingBookingId(created._id);
       setStep("scheduling");
     } catch (err) {
+      if (await handleApiError(err)) return;
       setError(err.message || "Failed to create booking.");
     } finally {
       setSubmitting(false);
@@ -182,10 +192,10 @@ export default function BookingModal({
               setEnergyKWh={setEnergyKWh}
               maxWaitHours={maxWaitHours}
               setMaxWaitHours={setMaxWaitHours}
-              wPrice={wPrice}
-              setWPrice={setWPrice}
-              wCo2={wCo2}
-              setWCo2={setWCo2}
+              cheapOn={cheapOn}
+              setCheapOn={setCheapOn}
+              ecoOn={ecoOn}
+              setEcoOn={setEcoOn}
               error={error}
               submitting={submitting}
               onBack={() => {

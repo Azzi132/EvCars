@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useApiErrorHandler } from "../contexts/AuthContext";
 import { cancelBooking, getMyBookings } from "../services/bookingService";
 import BookingCard from "./booking/BookingCard";
 import styles from "./booking/styles";
@@ -17,6 +18,7 @@ export default function MyBookingsModal({ visible, onClose, token }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const handleApiError = useApiErrorHandler();
 
   const reload = async () => {
     setLoading(true);
@@ -25,6 +27,7 @@ export default function MyBookingsModal({ visible, onClose, token }) {
       const data = await getMyBookings(token);
       setBookings(data);
     } catch (err) {
+      if (await handleApiError(err)) return;
       console.warn("Failed to load bookings:", err);
       setError("Could not load your bookings.");
     } finally {
@@ -46,6 +49,7 @@ export default function MyBookingsModal({ visible, onClose, token }) {
       // Reload so that the cancelled booking disappears instantly
       await reload();
     } catch (err) {
+      if (await handleApiError(err)) return;
       console.warn("Failed to cancel:", err);
     }
   };
