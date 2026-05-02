@@ -1,14 +1,19 @@
-// Time-of-use (TOU) electricity pricing.
+// Two cost dimensions live in this file: real money (€/kWh, time-of-use)
+// and a relative CO2 score. The scheduler's cost function is a weighted
+// sum of both, so we expose them with comparable shapes — `priceTerm`
+// returns € for the energy delivered, `co2Term` returns a unit-less
+// "eco score" that's also expressed in €-equivalent so the weighted
+// sum is sane.
 //
-// We model the day as four flat-rate bands. Cheap overnight, normal
-// during the working day, expensive in the evening peak, slightly cheaper
-// late at night. The scheduler uses these to compute the projected cost
-// of a charging slot — letting price-conscious users get pushed to
-// off-peak hours.
-//
-// To swap in a real tariff, just edit the bands. The math below works
-// for any non-overlapping list that covers the full 0–24 range.
+// To swap in a real tariff or a real grid-intensity feed, edit the
+// constants below; the scheduler doesn't care about the units, only
+// that bigger = worse.
 
+// ---- Time-of-use electricity pricing -------------------------------------
+
+// Four flat-rate bands covering the full 24h day. Cheap overnight,
+// normal during the working day, expensive in the evening peak,
+// slightly cheaper late at night. Edit these to model a real tariff.
 const TOU_BANDS = [
   { startHour: 0, endHour: 6, pricePerKWh: 0.10 },
   { startHour: 6, endHour: 17, pricePerKWh: 0.25 },
@@ -35,9 +40,9 @@ function startOfDay(d) {
 //
 // Walk-the-bands algorithm:
 //   - cursor starts at `s`.
-//   - Each iteration finds the band that contains `cursor`, computes the
-//     band's end-of-day boundary, and advances cursor to whichever is
-//     sooner (band end or interval end), accumulating price × ms.
+//   - Each iteration finds the band that contains `cursor`, computes
+//     the band's end-of-day boundary, and advances cursor to whichever
+//     is sooner (band end or interval end), accumulating price × ms.
 //   - Stops when cursor hits `e`.
 //   - Final result = total weighted price ÷ total ms.
 function averagePriceOverInterval(start, end) {
@@ -64,8 +69,32 @@ function averagePriceOverInterval(start, end) {
   return weighted / totalMs;
 }
 
+// ---- CO2 / "eco" scoring -------------------------------------------------
+
+// Scaling factor that makes the CO2 term comparable in magnitude to the
+// price term. The exact number isn't physically meaningful — it's tuned
+// so that, with energy and power figures typical for our chargers
+// (10–60 kWh, 7–150 kW), the CO2 score lands in the same ballpark as
+// the electricity bill. Increase to make CO2-conscious users prefer
+// slow chargers more strongly.
+const CO2_FACTOR = 0.0008;
+
+// Relative environmental cost of charging `energyKWh` at a charger of
+// `chargerPowerKW`. Linear in both:
+//   - More energy ⇒ more total emissions.
+//   - Higher kW ⇒ more instantaneous grid load, which (especially at
+//     peak times) is more likely to come from dirtier peaker plants.
+// A user who weights `co2` highly will see slow chargers picked over
+// fast ones for the same booking.
+function co2ScoreForCharge(energyKWh, chargerPowerKW) {
+  if (!chargerPowerKW || chargerPowerKW <= 0) return 0;
+  return energyKWh * chargerPowerKW * CO2_FACTOR;
+}
+
 module.exports = {
   priceAtEurPerKWh,
   averagePriceOverInterval,
+  co2ScoreForCharge,
   TOU_BANDS,
+  CO2_FACTOR,
 };

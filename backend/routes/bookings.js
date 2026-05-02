@@ -18,9 +18,9 @@ router.use(auth);
 // ---------- validation ------------------------------------------------------
 
 // Returns null if the payload is acceptable, or a human-readable error
-// message if not. We use `== null` for fields where 0 is a legitimate
-// value (coordinates, ids, maxWait) and `!x` for fields where 0 or "" is
-// definitely wrong (names, positive numbers like power and energy).
+// message if not. Validation here is the user-facing first line of
+// defence — Mongoose will catch type errors too, but its messages are
+// terse and not great UX.
 function validateCreatePayload(body) {
   const {
     stationId,
@@ -29,8 +29,7 @@ function validateCreatePayload(body) {
     stationLon,
     candidateChargers,
     energyDemandKWh,
-    deadline,
-    maxWaitMinutes,
+    maxWaitHours,
     preferences,
   } = body;
 
@@ -53,43 +52,30 @@ function validateCreatePayload(body) {
   if (!energyDemandKWh || energyDemandKWh <= 0) {
     return "energyDemandKWh must be > 0.";
   }
-  if (!deadline) return "deadline is required.";
-  const deadlineDate = new Date(deadline);
-  if (Number.isNaN(deadlineDate.getTime())) {
-    return "deadline is not a valid date.";
-  }
-  if (deadlineDate.getTime() <= Date.now()) {
-    return "deadline must be in the future.";
-  }
-  if (maxWaitMinutes == null || maxWaitMinutes < 0) {
-    return "maxWaitMinutes must be >= 0.";
+  // 0.25h (15 min) lower bound matches the scheduler's slot grid; 168h
+  // (one week) upper bound stops a typo from queueing a booking forever.
+  if (
+    typeof maxWaitHours !== "number" ||
+    maxWaitHours < 0.25 ||
+    maxWaitHours > 168
+  ) {
+    return "maxWaitHours must be a number between 0.25 and 168.";
   }
   if (
     !preferences ||
-    preferences.deadlineImportance == null ||
-    preferences.waitingImportance == null ||
-    preferences.priceImportance == null
+    typeof preferences.price !== "number" ||
+    typeof preferences.co2 !== "number"
   ) {
-    return "preferences.{deadlineImportance,waitingImportance,priceImportance} are required.";
+    return "preferences.{price,co2} are required numbers.";
   }
-  for (const key of [
-    "deadlineImportance",
-    "waitingImportance",
-    "priceImportance",
-  ]) {
+  for (const key of ["price", "co2"]) {
     const v = preferences[key];
-    if (typeof v !== "number" || v < 0 || v > 1) {
-      return `preferences.${key} must be a number in [0, 1].`;
+    if (v < 0 || v > 1) {
+      return `preferences.${key} must be in [0, 1].`;
     }
   }
-  // We allow weights that don't sum to 1 — the model's pre-validate hook
-  // normalises them — but at least one has to be positive or there's
-  // nothing for the scheduler to optimise.
-  const sum =
-    preferences.deadlineImportance +
-    preferences.waitingImportance +
-    preferences.priceImportance;
-  if (sum <= 0) return "At least one preference weight must be > 0.";
+  // The model's pre-validate hook normalises weights and tolerates a
+  // {0, 0} input by falling back to 50/50, so we don't reject it here.
   return null;
 }
 
@@ -107,8 +93,7 @@ router.post("/", async (req, res) => {
       stationLon,
       candidateChargers,
       energyDemandKWh,
-      deadline,
-      maxWaitMinutes,
+      maxWaitHours,
       preferences,
     } = req.body;
 
@@ -120,8 +105,7 @@ router.post("/", async (req, res) => {
       stationLon,
       candidateChargers,
       energyDemandKWh,
-      deadline: new Date(deadline),
-      maxWaitMinutes,
+      maxWaitHours,
       preferences,
       status: "pending",
     });

@@ -1,9 +1,10 @@
 // Mongoose schema for charging bookings.
 //
 // A Booking captures both the user's *request* (which station, how much
-// energy, by when, with what preferences) and the scheduler's *answer*
-// (which charger, what time slot, projected cost). The same document
-// transitions through statuses as the scheduler runs and time passes:
+// energy, how long they're willing to wait, and what to optimise for)
+// and the scheduler's *answer* (which charger, what time slot, projected
+// cost). The same document transitions through statuses as the scheduler
+// runs and time passes:
 //
 //   pending → scheduled → in_progress → completed
 //                 ↓
@@ -12,8 +13,8 @@
 //             cancelled
 //
 // `assignment` is null while pending/infeasible and gets populated by the
-// scheduler when a slot is found. See scheduler/index.js for the writer
-// and scheduler/strategies/greedy.js for how the slot is chosen.
+// scheduler when a slot is found. See scheduler/scheduler.js for the
+// writer and the slot-picking logic.
 
 const mongoose = require("mongoose");
 
@@ -29,21 +30,26 @@ const candidateChargerSchema = new mongoose.Schema(
   { _id: false },
 );
 
-// User-supplied weights describing what to optimize for. Each is in [0, 1]
-// and the trio is normalized to sum to 1 in the pre-validate hook below,
-// so the scheduler can treat them as a probability-like distribution.
+// What the user is optimising for. Two weights in [0, 1], normalised to
+// sum to 1 by the pre-validate hook below. Conceptually a probability
+// split: "60% I care about price, 40% I care about CO2."
+//
+// We don't include a "deadline weight" — the deadline is a hard window
+// (see `maxWaitHours` below), not a soft preference.
 const preferencesSchema = new mongoose.Schema(
   {
-    deadlineImportance: { type: Number, required: true, min: 0, max: 1 },
-    waitingImportance: { type: Number, required: true, min: 0, max: 1 },
-    priceImportance: { type: Number, required: true, min: 0, max: 1 },
+    // Higher = pick slots with cheaper electricity (off-peak time bands).
+    price: { type: Number, required: true, min: 0, max: 1 },
+    // Higher = prefer slower (lower-kW) chargers. Higher-power chargers
+    // pull harder on the grid, so a CO2-conscious user nudges toward
+    // slower chargers when one is available.
+    co2: { type: Number, required: true, min: 0, max: 1 },
   },
   { _id: false },
 );
 
-// Concrete slot the scheduler has picked. revisionCount is bumped each
-// time the scheduler re-optimises this booking onto a different slot,
-// which helps debugging if a user keeps getting moved around.
+// Concrete slot the scheduler has picked. Populated when status flips
+// from pending → scheduled.
 const assignmentSchema = new mongoose.Schema(
   {
     chargerId: { type: Number, required: true },
@@ -51,11 +57,13 @@ const assignmentSchema = new mongoose.Schema(
     powerKW: { type: Number, required: true },
     startTime: { type: Date, required: true },
     endTime: { type: Date, required: true },
+    // Projected € for the energy delivered, using TOU pricing over [start, end).
     estimatedCostEur: { type: Number, required: true },
-    deadlinePenaltyMinutes: { type: Number, required: true, default: 0 },
-    waitingPenaltyMinutes: { type: Number, required: true, default: 0 },
+    // Relative "eco score" — proportional to chargerPowerKW × energy.
+    // Lower is greener. Stored for transparency in the UI; the scheduler
+    // recomputes it from pricing.js when scoring slots.
+    estimatedCo2Score: { type: Number, required: true, default: 0 },
     assignedAt: { type: Date, default: Date.now },
-    revisionCount: { type: Number, default: 0 },
   },
   { _id: false },
 );
@@ -83,8 +91,12 @@ const bookingSchema = new mongoose.Schema({
 
   // The request itself
   energyDemandKWh: { type: Number, required: true, min: 0.1 },
-  deadline: { type: Date, required: true, index: true },
-  maxWaitMinutes: { type: Number, required: true, min: 0 },
+  // "I'm willing to wait up to N hours from now." This is the user's
+  // deadline expressed as a duration: deadlineMs = createdAt + maxWaitHours.
+  // Capped at a week so a typo can't ask the scheduler to plan for next
+  // year. The scheduler treats this as a hard constraint — if no slot
+  // fits inside this window, the booking goes infeasible.
+  maxWaitHours: { type: Number, required: true, min: 0.25, max: 168 },
   preferences: { type: preferencesSchema, required: true },
 
   // Lifecycle
@@ -108,22 +120,24 @@ const bookingSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now, index: true },
 });
 
-// Normalize preference weights so they sum to 1. We allow callers to pass
-// raw weights like {1, 1, 1} or {0.5, 0.25, 0.25} and quietly rescale.
-// The 1e-6 tolerance covers floating-point fuzz when weights already sum
-// to ~1 and lets us skip the divide in that common case.
-bookingSchema.pre("validate", function normalizePreferences(next) {
+// Normalise preference weights so they sum to 1. We allow callers to pass
+// raw weights like {price: 1, co2: 1} or {price: 0.5, co2: 0.5} and quietly
+// rescale. The 1e-6 tolerance covers floating-point fuzz when weights
+// already sum to ~1 and lets us skip the divide in that common case.
+//
+// If the caller zeros both weights out, fall back to a 50/50 split rather
+// than rejecting the booking — there's no useful "I care about nothing"
+// answer for the scheduler.
+bookingSchema.pre("validate", function normalisePreferences(next) {
   if (!this.preferences) return next();
-  const { deadlineImportance, waitingImportance, priceImportance } =
-    this.preferences;
-  const sum =
-    (deadlineImportance || 0) +
-    (waitingImportance || 0) +
-    (priceImportance || 0);
-  if (sum > 0 && Math.abs(sum - 1) > 1e-6) {
-    this.preferences.deadlineImportance = (deadlineImportance || 0) / sum;
-    this.preferences.waitingImportance = (waitingImportance || 0) / sum;
-    this.preferences.priceImportance = (priceImportance || 0) / sum;
+  const { price, co2 } = this.preferences;
+  const sum = (price || 0) + (co2 || 0);
+  if (sum <= 0) {
+    this.preferences.price = 0.5;
+    this.preferences.co2 = 0.5;
+  } else if (Math.abs(sum - 1) > 1e-6) {
+    this.preferences.price = (price || 0) / sum;
+    this.preferences.co2 = (co2 || 0) / sum;
   }
   next();
 });

@@ -1,6 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { priceAtEurPerKWh, averagePriceOverInterval } = require("../pricing");
+const {
+  priceAtEurPerKWh,
+  averagePriceOverInterval,
+  co2ScoreForCharge,
+  CO2_FACTOR,
+} = require("../pricing");
 
 function at(h, m = 0) {
   const d = new Date();
@@ -30,4 +35,22 @@ test("averagePriceOverInterval: crossing bands averages by duration", () => {
   const avg = averagePriceOverInterval(at(5), at(8));
   const expected = (1 * 0.10 + 2 * 0.25) / 3;
   assert.ok(Math.abs(avg - expected) < 1e-9);
+});
+
+test("co2ScoreForCharge: linear in energy and power", () => {
+  // Doubling energy doubles the score; doubling power doubles it again.
+  const a = co2ScoreForCharge(20, 50);
+  const b = co2ScoreForCharge(40, 50);
+  const c = co2ScoreForCharge(20, 100);
+  assert.ok(Math.abs(b - 2 * a) < 1e-9);
+  assert.ok(Math.abs(c - 2 * a) < 1e-9);
+});
+
+test("co2ScoreForCharge: matches energy * power * factor", () => {
+  assert.equal(co2ScoreForCharge(30, 50), 30 * 50 * CO2_FACTOR);
+});
+
+test("co2ScoreForCharge: returns 0 for non-positive power", () => {
+  assert.equal(co2ScoreForCharge(20, 0), 0);
+  assert.equal(co2ScoreForCharge(20, -5), 0);
 });

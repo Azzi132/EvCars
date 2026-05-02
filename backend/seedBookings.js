@@ -1,9 +1,14 @@
 // Demo seeder for the booking flow.
 //
 // Wipes admin's existing bookings and inserts two pending requests with
-// different priorities — one urgent-ish, one flexible & price-sensitive
-// — so you can watch the scheduler turn them into concrete slots after
-// it next runs. Useful for eyeballing the scheduler in dev.
+// opposite preference profiles — one cheap-focused, one CO2-focused —
+// so you can watch the scheduler turn them into concrete slots after it
+// next runs. Useful for eyeballing the scheduler in dev.
+//
+// Expected outcome on a typical day:
+//   - cheap-focused booking gets pushed into an off-peak (low €/kWh) band.
+//   - co2-focused booking gets the slowest available charger so it
+//     pulls less power from the grid.
 //
 // Run with `npm run seed:bookings` (after `npm run seed` to create admin).
 
@@ -32,7 +37,7 @@ async function seedBookings() {
   const user = await User.findOne({ username: USERNAME });
   if (!user) {
     console.log(
-      `User "${USERNAME}" not found. Run "npm run seed" first to create it.`
+      `User "${USERNAME}" not found. Run "npm run seed" first to create it.`,
     );
     await mongoose.disconnect();
     return;
@@ -40,10 +45,8 @@ async function seedBookings() {
 
   const removed = await Booking.deleteMany({ userId: user._id });
   console.log(
-    `Removed ${removed.deletedCount} existing booking(s) for "${USERNAME}".`
+    `Removed ${removed.deletedCount} existing booking(s) for "${USERNAME}".`,
   );
-
-  const now = new Date();
 
   const docs = [
     {
@@ -51,27 +54,17 @@ async function seedBookings() {
       ...SAMPLE_STATION,
       candidateChargers: SAMPLE_CHARGERS,
       energyDemandKWh: 25,
-      deadline: new Date(now.getTime() + 3 * 60 * 60 * 1000),
-      maxWaitMinutes: 60,
-      preferences: {
-        deadlineImportance: 0.5,
-        waitingImportance: 0.25,
-        priceImportance: 0.25,
-      },
+      maxWaitHours: 8,                                  // willing to wait
+      preferences: { price: 0.9, co2: 0.1 },            // cheap-focused
       status: "pending",
     },
     {
       userId: user._id,
       ...SAMPLE_STATION,
       candidateChargers: SAMPLE_CHARGERS,
-      energyDemandKWh: 40,
-      deadline: new Date(now.getTime() + 20 * 60 * 60 * 1000),
-      maxWaitMinutes: 240,
-      preferences: {
-        deadlineImportance: 0.1,
-        waitingImportance: 0.1,
-        priceImportance: 0.8,
-      },
+      energyDemandKWh: 30,
+      maxWaitHours: 12,                                 // very flexible
+      preferences: { price: 0.1, co2: 0.9 },            // green-focused
       status: "pending",
     },
   ];
@@ -80,11 +73,12 @@ async function seedBookings() {
   console.log(`Inserted ${docs.length} pending booking(s) for "${USERNAME}":`);
   docs.forEach((d, i) => {
     console.log(
-      `  ${i + 1}. ${d.energyDemandKWh} kWh, deadline ${d.deadline.toISOString()}, prefs=${JSON.stringify(d.preferences)}`
+      `  ${i + 1}. ${d.energyDemandKWh} kWh, within ${d.maxWaitHours}h, ` +
+        `prefs=${JSON.stringify(d.preferences)}`,
     );
   });
   console.log(
-    "\nStart the backend to have the scheduler assign concrete slots."
+    "\nStart the backend to have the scheduler assign concrete slots.",
   );
 
   await mongoose.disconnect();

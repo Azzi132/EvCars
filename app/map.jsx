@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
-import BookingModal from "../components/BookingModal";
+import BookingModal from "../components/booking/BookingModal";
 import MyBookingsModal from "../components/MyBookingsModal";
 import { useAuth } from "../contexts/AuthContext";
 import { fetchNearbyStations } from "../services/stationService";

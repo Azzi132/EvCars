@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node *)",
+      "Read(//proc/sys/fs/binfmt_misc/**)",
+      "Read(//etc/**)",
+      "Bash(sudo sh *)",
+      "Bash(/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe *)",
+      "Read(//proc/2889/net/**)",
+      "Bash(awk '$4 ~ /:5000$/')"
+    ]
+  }
+}

@@ -1,11 +1,3 @@
-// App-wide auth state. Wraps the whole app in _layout.jsx so any screen
-// can call useAuth() to read the current token or log the user in/out.
-//
-// The token is mirrored in AsyncStorage so it survives app restarts.
-// `isLoading` is true while we read that storage on first mount, which
-// lets screens like LoginScreen avoid flashing the form before we know
-// whether the user is already signed in.
-
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useContext, useEffect, useState } from "react";
 

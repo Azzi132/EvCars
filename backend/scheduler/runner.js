@@ -13,7 +13,7 @@
 // pattern: if a tick is already in flight when another fires, we just
 // remember that something changed and re-run once it finishes.
 
-const { runScheduler } = require("./index");
+const { runScheduler } = require("./scheduler");
 
 const INTERVAL_MS = 30 * 1000;
 const DEBOUNCE_MS = 500;
