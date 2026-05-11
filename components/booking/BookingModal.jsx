@@ -18,7 +18,7 @@
 // `useBookingPolling` (running in BookingModal's render via the hook)
 // flips us to "assigned" or "infeasible" when an answer arrives.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal, View } from "react-native";
 import { useApiErrorHandler } from "../../contexts/AuthContext";
 import { createBooking } from "../../services/bookingService";
@@ -30,7 +30,13 @@ import styles from "./styles";
 import useBookingPolling from "./useBookingPolling";
 
 function formatConnectorLabel(connector) {
-  const type = connector.connectionType || "Connector";
+  const hasType =
+    connector.connectionType && connector.connectionType !== "Unknown";
+  const type =
+    (hasType && connector.connectionType) ||
+    (connector.currentType && `${connector.currentType} charger`) ||
+    connector.level ||
+    "Connector";
   if (connector.powerKW) return `${type} — ${connector.powerKW} kW`;
   return type;
 }
@@ -57,6 +63,10 @@ export default function BookingModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [pendingBookingId, setPendingBookingId] = useState(null);
+  // Tracks which booking we've already announced to the parent so that
+  // re-renders (which give us a new onBookingCreated reference) don't
+  // re-fire the callback and re-open MyBookings after the user dismisses it.
+  const notifiedForBookingRef = useRef(null);
   const handleApiError = useApiErrorHandler();
 
   // Show only the 5 closest stations.
@@ -89,18 +99,20 @@ export default function BookingModal({
 
   // React to the polling outcome by transitioning step.
   useEffect(() => {
-    if (outcome === "assigned") {
-      setStep("assigned");
-      onBookingCreated?.();
-    } else if (outcome === "infeasible") {
-      setStep("infeasible");
-      onBookingCreated?.();
-    } else if (outcome === "timeout" || outcome === "error") {
+    if (outcome === "assigned") setStep("assigned");
+    else if (outcome === "infeasible") setStep("infeasible");
+    else if (outcome === "timeout" || outcome === "error") {
       // Bounce back to preferences so the user can retry. The error is
       // surfaced by the polling hook itself.
       setStep("preferences");
     }
-  }, [outcome, onBookingCreated]);
+
+    const isTerminal = outcome === "assigned" || outcome === "infeasible";
+    if (isTerminal && notifiedForBookingRef.current !== pendingBookingId) {
+      notifiedForBookingRef.current = pendingBookingId;
+      onBookingCreated?.();
+    }
+  }, [outcome, pendingBookingId, onBookingCreated]);
 
   // ---- submit ----------------------------------------------------------
 

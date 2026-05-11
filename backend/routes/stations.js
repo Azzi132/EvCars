@@ -71,7 +71,7 @@ router.get("/nearby", async (req, res) => {
           .filter((c) => c.ID != null)
           .map((c) => ({
             id: c.ID,
-            connectionType: c.ConnectionType?.Title ?? "Unknown",
+            connectionType: c.ConnectionType?.Title ?? null,
             level: c.Level?.Title ?? null,
             powerKW: typeof c.PowerKW === "number" ? c.PowerKW : null,
             currentType: c.CurrentType?.Title ?? null,

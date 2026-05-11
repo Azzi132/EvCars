@@ -1,6 +1,6 @@
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -14,13 +14,25 @@ import MyBookingsModal from "../components/MyBookingsModal";
 import { useAuth } from "../contexts/AuthContext";
 import { fetchNearbyStations } from "../services/stationService";
 
+// Default center used until a real fix arrives — Sarajevo, BiH.
+// The map renders here instantly; nearby stations are fetched as soon as
+// any location source returns coordinates.
+const DEFAULT_REGION = {
+  latitude: 43.8563,
+  longitude: 18.4131,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+};
+
 export default function MapScreen() {
-  const [location, setLocation] = useState(null);
+  const [location, setLocation] = useState(DEFAULT_REGION);
   const [stations, setStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState(null);
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
   const [myBookingsVisible, setMyBookingsVisible] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(null);
+
+  const mapRef = useRef(null);
+  const lastFixRef = useRef(null);
 
   const { token, isLoading, logout } = useAuth();
   const router = useRouter();
@@ -31,35 +43,88 @@ export default function MapScreen() {
     }
   }, [isLoading, token]);
 
-  // Ask for location permission
   useEffect(() => {
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setErrorMsg(
-          "Location permission denied. Please enable it in settings.",
-        );
-        return;
-      }
+    let cancelled = false;
+    let watchSub = null;
+    let loadedStationsFor = null;
+    let gotRealFix = false;
 
-      const loc = await Location.getCurrentPositionAsync({});
-      setLocation({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      });
-
+    const loadStations = async (lat, lng) => {
+      const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+      if (loadedStationsFor === key) return;
+      loadedStationsFor = key;
       try {
-        const nearby = await fetchNearbyStations(
-          loc.coords.latitude,
-          loc.coords.longitude,
-        );
-        setStations(nearby);
+        const nearby = await fetchNearbyStations(lat, lng);
+        if (!cancelled) setStations(nearby);
       } catch (err) {
         console.warn("Failed to load nearby stations:", err);
       }
+    };
+
+    const applyCoords = (coords) => {
+      if (cancelled || !coords) return;
+      gotRealFix = true;
+      const region = {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+      lastFixRef.current = region;
+      setLocation(region);
+      mapRef.current?.animateToRegion(region, 800);
+      loadStations(coords.latitude, coords.longitude);
+    };
+
+    // Always seed stations for the default region so the map isn't empty.
+    loadStations(DEFAULT_REGION.latitude, DEFAULT_REGION.longitude);
+
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (cancelled || status !== "granted") return;
+
+        // Fire all three location sources in parallel — whichever returns
+        // first wins. None of them blocks the UI because the map already
+        // rendered with DEFAULT_REGION.
+        Location.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000 })
+          .then((last) => last && applyCoords(last.coords))
+          .catch((err) => console.warn("getLastKnownPositionAsync:", err));
+
+        Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        })
+          .then((loc) => applyCoords(loc.coords))
+          .catch((err) => console.warn("getCurrentPositionAsync:", err));
+
+        try {
+          watchSub = await Location.watchPositionAsync(
+            {
+              accuracy: Location.Accuracy.Balanced,
+              timeInterval: 3000,
+              distanceInterval: 10,
+            },
+            (loc) => {
+              applyCoords(loc.coords);
+              // Once we have a real fix, stop watching to save battery.
+              if (gotRealFix && watchSub) {
+                watchSub.remove();
+                watchSub = null;
+              }
+            },
+          );
+        } catch (err) {
+          console.warn("watchPositionAsync:", err);
+        }
+      } catch (err) {
+        console.warn("Location setup failed:", err);
+      }
     })();
+
+    return () => {
+      cancelled = true;
+      if (watchSub) watchSub.remove();
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -75,30 +140,13 @@ export default function MapScreen() {
     );
   }
 
-  if (errorMsg) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{errorMsg}</Text>
-      </View>
-    );
-  }
-
-  if (!location) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2E7D32" />
-        <Text style={styles.loadingText}>Getting your location...</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         initialRegion={location}
         showsUserLocation
-        showsMyLocationButton
       >
         {stations.map((station) => (
           <Marker
@@ -125,6 +173,16 @@ export default function MapScreen() {
         onPress={() => setMyBookingsVisible(true)}
       >
         <Text style={styles.myBookingsText}>📅 Bookings</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.myLocationButton}
+        onPress={() => {
+          const target = lastFixRef.current;
+          if (target) mapRef.current?.animateToRegion(target, 500);
+        }}
+      >
+        <Text style={styles.myLocationText}>📍</Text>
       </TouchableOpacity>
 
       {selectedStation ? (
@@ -275,6 +333,25 @@ const styles = StyleSheet.create({
     color: "#2E7D32",
     fontSize: 13,
     fontWeight: "600",
+  },
+  myLocationButton: {
+    position: "absolute",
+    top: 160,
+    right: 20,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  myLocationText: {
+    fontSize: 18,
   },
   centered: {
     flex: 1,
