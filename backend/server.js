@@ -11,7 +11,7 @@ const cors = require("cors");
 const authRoutes = require("./routes/auth");
 const stationsRoutes = require("./routes/stations");
 const bookingsRoutes = require("./routes/bookings");
-const schedulerRunner = require("./scheduler/runner");
+const schedulerRunner = require("./scheduler");
 
 const app = express();
 app.use(cors());

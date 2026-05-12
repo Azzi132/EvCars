@@ -3,13 +3,14 @@
 // Every route here requires a valid JWT (see `router.use(auth)` below) and
 // is scoped to the authenticated user. Mutating routes (POST, DELETE) call
 // schedulerRunner.trigger() at the end so the scheduler re-evaluates
-// assignments quickly instead of waiting for the next 30-second tick.
+// assignments quickly instead of waiting for the next periodic tick.
 
 const express = require("express");
 const mongoose = require("mongoose");
-const Booking = require("../models/Booking");
+const Booking = require("../scheduler/models");
 const auth = require("../middleware/auth");
-const schedulerRunner = require("../scheduler/runner");
+const schedulerRunner = require("../scheduler");
+const schedulerBookings = require("../scheduler/bookings");
 
 const router = express.Router();
 
@@ -123,16 +124,17 @@ router.post("/", async (req, res) => {
 
 // ---------- GET /mine -- list current user's active bookings --------------
 
-// "Active" means: still pending/infeasible (so the user can see it being
-// worked on or know it failed), or scheduled/in_progress with an end time
-// still in the future. Completed and cancelled bookings drop out.
+// "Active" means: still pending (so the user can see it being worked on),
+// or scheduled/in_progress with an end time still in the future.
+// Infeasible bookings are handled inside the booking flow itself — they
+// must not appear here. Completed and cancelled bookings also drop out.
 router.get("/mine", async (req, res) => {
   try {
     const now = new Date();
     const bookings = await Booking.find({
       userId: req.userId,
       $or: [
-        { status: { $in: ["pending", "infeasible"] } },
+        { status: "pending" },
         {
           status: { $in: ["scheduled", "in_progress"] },
           "assignment.endTime": { $gt: now },
@@ -190,6 +192,44 @@ router.get("/availability", async (req, res) => {
   }
 });
 
+// ---------- POST /:id/accept-reschedule -- adopt the proposed earlier slot --
+
+router.post("/:id/accept-reschedule", async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid booking id." });
+    }
+    const booking = await schedulerBookings.acceptReschedule(
+      req.params.id,
+      req.userId,
+    );
+    // The just-vacated slot may let other bookings move earlier too.
+    schedulerRunner.trigger();
+    res.json(booking);
+  } catch (err) {
+    console.error("Accept reschedule error:", err);
+    res.status(400).json({ message: err.message || "Failed to accept." });
+  }
+});
+
+// ---------- POST /:id/reject-reschedule -- discard the proposal ------------
+
+router.post("/:id/reject-reschedule", async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid booking id." });
+    }
+    const booking = await schedulerBookings.rejectReschedule(
+      req.params.id,
+      req.userId,
+    );
+    res.json(booking);
+  } catch (err) {
+    console.error("Reject reschedule error:", err);
+    res.status(400).json({ message: err.message || "Failed to reject." });
+  }
+});
+
 // ---------- GET /:id -- fetch one of the user's bookings ------------------
 
 router.get("/:id", async (req, res) => {
@@ -232,14 +272,13 @@ router.delete("/:id", async (req, res) => {
         .json({ message: `Cannot cancel a ${booking.status} booking.` });
     }
 
-    booking.status = "cancelled";
-    await booking.save();
+    await Booking.deleteOne({ _id: booking._id });
 
     // Freeing this slot may let the scheduler give a better assignment
     // to someone else — re-run it now instead of on the next tick.
     schedulerRunner.trigger();
 
-    res.json(booking);
+    res.json({ _id: booking._id, deleted: true });
   } catch (err) {
     console.error("Cancel booking error:", err);
     res.status(500).json({ message: "Failed to cancel booking." });

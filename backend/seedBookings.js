@@ -6,7 +6,7 @@
 // next runs. Useful for eyeballing the scheduler in dev.
 //
 // Expected outcome on a typical day:
-//   - cheap-focused booking gets pushed into an off-peak (low €/kWh) band.
+//   - cheap-focused booking gets pushed into an off-peak (low DKK/kWh) band.
 //   - co2-focused booking gets the slowest available charger so it
 //     pulls less power from the grid.
 //
@@ -15,7 +15,7 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
 const User = require("./models/User");
-const Booking = require("./models/Booking");
+const Booking = require("./scheduler/models");
 
 const USERNAME = "admin";
 

@@ -15,7 +15,7 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
 const User = require("./models/User");
-const Booking = require("./models/Booking");
+const Booking = require("./scheduler/models");
 
 const STATION = {
   stationId: 999001,

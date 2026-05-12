@@ -22,10 +22,17 @@ export default function ResultStep({
   outcome,
   booking,
   onClose,
-  onRetry,
+  onPickStation,
+  onAdjustPrefs,
 }) {
   if (outcome === "infeasible") {
-    return <InfeasibleBody onClose={onClose} onRetry={onRetry} />;
+    return (
+      <InfeasibleBody
+        onClose={onClose}
+        onPickStation={onPickStation}
+        onAdjustPrefs={onAdjustPrefs}
+      />
+    );
   }
   return <AssignedBody booking={booking} onClose={onClose} />;
 }
@@ -56,7 +63,7 @@ function AssignedBody({ booking, onClose }) {
           Estimated cost
         </Text>
         <Text style={styles.sectionValue}>
-          €{a.estimatedCostEur.toFixed(2)}
+          DKK {a.estimatedCostDkk.toFixed(2)}
         </Text>
         {/* Eco score is a relative number, not absolute kg-CO2 — so we
             show it without units. Lower is greener. */}
@@ -73,23 +80,31 @@ function AssignedBody({ booking, onClose }) {
   );
 }
 
-function InfeasibleBody({ onClose, onRetry }) {
+function InfeasibleBody({ onClose, onPickStation, onAdjustPrefs }) {
   return (
     <>
       <Header title="No slot found" onClose={onClose} />
       <View style={styles.centered}>
         <Text style={[styles.sectionValue, { textAlign: "center" }]}>
-          The scheduler couldn't fit your charge inside the time window
-          you chose.
+          No available time could be found.
         </Text>
         <Text
           style={[styles.sectionHint, { textAlign: "center", marginTop: 8 }]}
         >
-          Try a longer wait window, less energy, or a different station.
+          Try a different station, or adjust your preferences so a time
+          can be found.
         </Text>
       </View>
-      <TouchableOpacity style={styles.primaryButton} onPress={onRetry}>
-        <Text style={styles.primaryButtonText}>Adjust and retry</Text>
+      <TouchableOpacity style={styles.primaryButton} onPress={onPickStation}>
+        <Text style={styles.primaryButtonText}>Pick another station</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.primaryButton, styles.primaryButtonOutline]}
+        onPress={onAdjustPrefs}
+      >
+        <Text style={[styles.primaryButtonText, styles.primaryButtonOutlineText]}>
+          Adjust preferences
+        </Text>
       </TouchableOpacity>
     </>
   );

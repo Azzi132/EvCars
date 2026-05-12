@@ -34,11 +34,17 @@ function formatTimeRange(start, end) {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-export default function BookingCard({ booking, onCancel }) {
+export default function BookingCard({
+  booking,
+  onCancel,
+  onAcceptReschedule,
+  onRejectReschedule,
+}) {
   const meta = STATUS_META[booking.status] || STATUS_META.pending;
   const hasAssignment = booking.assignment && booking.assignment.startTime;
   const canCancel =
     booking.status === "pending" || booking.status === "scheduled";
+  const proposal = booking.proposedReschedule;
 
   return (
     <View style={[styles.card, { borderLeftColor: meta.accent }]}>
@@ -67,9 +73,9 @@ export default function BookingCard({ booking, onCancel }) {
               )}
             </Text>
           </View>
-          {booking.assignment.estimatedCostEur != null ? (
+          {booking.assignment.estimatedCostDkk != null ? (
             <Text style={styles.cardMeta}>
-              ~€{booking.assignment.estimatedCostEur.toFixed(2)} •{" "}
+              ~DKK {booking.assignment.estimatedCostDkk.toFixed(2)} •{" "}
               {booking.energyDemandKWh} kWh
               {booking.assignment.estimatedCo2Score != null
                 ? ` • eco ${booking.assignment.estimatedCo2Score.toFixed(2)}`
@@ -82,6 +88,35 @@ export default function BookingCard({ booking, onCancel }) {
           {booking.energyDemandKWh} kWh • within {booking.maxWaitHours} h
         </Text>
       )}
+
+      {proposal ? (
+        <View style={styles.rescheduleBanner}>
+          <Text style={styles.rescheduleTitle}>Earlier slot available</Text>
+          <Text style={styles.rescheduleText}>
+            {formatDateLabel(new Date(proposal.newStart))}{" "}
+            {formatTimeRange(
+              new Date(proposal.newStart),
+              new Date(proposal.newEnd),
+            )}{" "}
+            on {proposal.newChargerLabel} • ~DKK{" "}
+            {proposal.newEstimatedCostDkk.toFixed(2)}
+          </Text>
+          <View style={styles.rescheduleButtons}>
+            <TouchableOpacity
+              style={styles.acceptButton}
+              onPress={onAcceptReschedule}
+            >
+              <Text style={styles.acceptText}>Accept</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.declineButton}
+              onPress={onRejectReschedule}
+            >
+              <Text style={styles.declineText}>Decline</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       {canCancel ? (
         <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>

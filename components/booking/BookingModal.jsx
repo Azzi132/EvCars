@@ -97,22 +97,51 @@ export default function BookingModal({
     token,
   );
 
-  // React to the polling outcome by transitioning step.
+  // React to the polling outcome by transitioning step. Two guards:
+  //
+  //   1. `!pendingBookingId` — no booking in flight, ignore stale outcome.
+  //   2. `notifiedForBookingRef.current === pendingBookingId` — we have
+  //      already handled the terminal transition for this booking. Re-
+  //      running setStep here would clobber the reset effect's
+  //      setStep("stations") on the next reopen (effects fire in
+  //      declaration order in the same cycle; state updates haven't
+  //      applied yet) and stick the modal on a ResultStep whose
+  //      `booking` has since been cleared to null → white screen.
   useEffect(() => {
+    if (!pendingBookingId) return;
+    if (notifiedForBookingRef.current === pendingBookingId) return;
+
     if (outcome === "assigned") setStep("assigned");
     else if (outcome === "infeasible") setStep("infeasible");
     else if (outcome === "timeout" || outcome === "error") {
-      // Bounce back to preferences so the user can retry. The error is
-      // surfaced by the polling hook itself.
       setStep("preferences");
     }
 
+    // Mark the booking as handled either way so a reopen doesn't re-fire
+    // setStep with stale outcome. But MyBookings only opens for a real
+    // assignment — infeasible stays inside the booking flow so the user
+    // can either pick another station or adjust preferences.
     const isTerminal = outcome === "assigned" || outcome === "infeasible";
-    if (isTerminal && notifiedForBookingRef.current !== pendingBookingId) {
+    if (isTerminal) {
       notifiedForBookingRef.current = pendingBookingId;
-      onBookingCreated?.();
+      if (outcome === "assigned") {
+        onBookingCreated?.();
+      }
     }
   }, [outcome, pendingBookingId, onBookingCreated]);
+
+  // ---- infeasible recovery --------------------------------------------
+
+  // When no slot can be found, the user picks one of two paths back.
+  // The backend has already deleted the booking doc (assignPending does
+  // that when findBestSlot returns null), so this is purely local state.
+  const handleInfeasibleExit = (nextStep) => {
+    setPendingBookingId(null);
+    notifiedForBookingRef.current = null;
+    setError(null);
+    if (nextStep === "stations") setSelectedStation(null);
+    setStep(nextStep);
+  };
 
   // ---- submit ----------------------------------------------------------
 
@@ -230,7 +259,8 @@ export default function BookingModal({
             <ResultStep
               outcome="infeasible"
               onClose={onClose}
-              onRetry={() => setStep("preferences")}
+              onPickStation={() => handleInfeasibleExit("stations")}
+              onAdjustPrefs={() => handleInfeasibleExit("preferences")}
             />
           )}
         </View>

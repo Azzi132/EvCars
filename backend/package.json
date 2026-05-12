@@ -6,7 +6,7 @@
     "seed": "node addUser.js",
     "seed:bookings": "node seedBookings.js",
     "seed:ab": "node seedScenarioAB.js",
-    "test": "node --test scheduler/__tests__/*.test.js"
+    "example": "node scheduler/example.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

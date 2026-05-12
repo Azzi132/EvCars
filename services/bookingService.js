@@ -43,6 +43,24 @@ export async function cancelBooking(id, token) {
   return res.json();
 }
 
+export async function acceptReschedule(id, token) {
+  const res = await fetch(`${API_URL}/api/bookings/${id}/accept-reschedule`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  await throwIfError(res, "Failed to accept reschedule");
+  return res.json();
+}
+
+export async function rejectReschedule(id, token) {
+  const res = await fetch(`${API_URL}/api/bookings/${id}/reject-reschedule`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  await throwIfError(res, "Failed to reject reschedule");
+  return res.json();
+}
+
 export async function getMyBookings(token) {
   const res = await fetch(`${API_URL}/api/bookings/mine`, {
     headers: authHeaders(token),

@@ -1,100 +1,72 @@
-// Two cost dimensions live in this file: real money (€/kWh, time-of-use)
-// and a relative CO2 score. The scheduler's cost function is a weighted
-// sum of both, so we expose them with comparable shapes — `priceTerm`
-// returns € for the energy delivered, `co2Term` returns a unit-less
-// "eco score" that's also expressed in €-equivalent so the weighted
-// sum is sane.
-//
-// To swap in a real tariff or a real grid-intensity feed, edit the
-// constants below; the scheduler doesn't care about the units, only
-// that bigger = worse.
+// DKK/kWh and renewable-share % tables are approximations of DK1 patterns
+// for 2025 based on publicly documented Nord Pool spot prices and Energi
+// Data Service "CO2Emis" / renewable share data. Not real-time — they're
+// representative hourly profiles used as a stand-in for a live price feed.
+// Sources:
+//   Nord Pool day-ahead prices (DK1):    https://www.nordpoolgroup.com/
+//   Energi Data Service:                 https://www.energidataservice.dk/
 
-// ---- Time-of-use electricity pricing -------------------------------------
-
-// Four flat-rate bands covering the full 24h day. Cheap overnight,
-// normal during the working day, expensive in the evening peak,
-// slightly cheaper late at night. Edit these to model a real tariff.
-const TOU_BANDS = [
-  { startHour: 0, endHour: 6, pricePerKWh: 0.10 },
-  { startHour: 6, endHour: 17, pricePerKWh: 0.25 },
-  { startHour: 17, endHour: 21, pricePerKWh: 0.40 },
-  { startHour: 21, endHour: 24, pricePerKWh: 0.20 },
+// DKK/kWh, weekday DK1 — index = hour 0..23
+const WEEKDAY_PRICES = [
+  1.70, 1.65, 1.60, 1.55, 1.60, 1.75,
+  2.10, 2.60, 2.80, 2.50, 2.20, 2.00,
+  1.90, 1.85, 1.95, 2.10, 2.50, 3.00,
+  3.30, 3.20, 2.90, 2.40, 2.00, 1.80,
 ];
 
-// Spot price for the moment in time `date` falls into.
-function priceAtEurPerKWh(date) {
-  const d = date instanceof Date ? date : new Date(date);
-  const hour = d.getHours() + d.getMinutes() / 60;
-  const band = TOU_BANDS.find((b) => hour >= b.startHour && hour < b.endHour);
-  return band ? band.pricePerKWh : TOU_BANDS[TOU_BANDS.length - 1].pricePerKWh;
-}
+const WEEKEND_PRICES = [
+  1.60, 1.55, 1.50, 1.45, 1.50, 1.60,
+  1.75, 1.90, 1.95, 1.85, 1.65, 1.45,
+  1.30, 1.25, 1.35, 1.55, 1.85, 2.20,
+  2.50, 2.40, 2.10, 1.85, 1.65, 1.55,
+];
 
-function startOfDay(d) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
+// Renewable share %, by hour (same on weekdays and weekends — simplified).
+const RENEWABLE_SHARE = [
+  78, 80, 82, 83, 82, 80,
+  72, 65, 60, 62, 68, 75,
+  82, 85, 86, 84, 78, 70,
+  60, 58, 62, 70, 75, 77,
+];
 
-// Average €/kWh over a time interval, weighting each TOU band by how
-// many milliseconds of the interval fall inside it.
-//
-// Walk-the-bands algorithm:
-//   - cursor starts at `s`.
-//   - Each iteration finds the band that contains `cursor`, computes
-//     the band's end-of-day boundary, and advances cursor to whichever
-//     is sooner (band end or interval end), accumulating price × ms.
-//   - Stops when cursor hits `e`.
-//   - Final result = total weighted price ÷ total ms.
-function averagePriceOverInterval(start, end) {
-  const s = start instanceof Date ? start : new Date(start);
-  const e = end instanceof Date ? end : new Date(end);
-  if (e <= s) return priceAtEurPerKWh(s);
+const isWeekend = (date) => {
+  const d = date.getDay();
+  return d === 0 || d === 6;
+};
 
-  const totalMs = e.getTime() - s.getTime();
-  let weighted = 0;
-  let cursor = new Date(s);
+const getPrice = (date) =>
+  (isWeekend(date) ? WEEKEND_PRICES : WEEKDAY_PRICES)[date.getHours()];
 
-  while (cursor < e) {
-    const dayStart = startOfDay(cursor);
-    const hour = cursor.getHours() + cursor.getMinutes() / 60;
-    const band = TOU_BANDS.find((b) => hour >= b.startHour && hour < b.endHour)
-      || TOU_BANDS[TOU_BANDS.length - 1];
-    const bandEnd = new Date(dayStart.getTime() + band.endHour * 3600 * 1000);
-    const next = bandEnd < e ? bandEnd : e;
-    const ms = next.getTime() - cursor.getTime();
-    weighted += band.pricePerKWh * ms;
-    cursor = next;
+const getRenewable = (date) => RENEWABLE_SHARE[date.getHours()];
+
+// Walks each hour boundary inside [start, end) and returns a duration-
+// weighted average of `lookup(hourDate)`. Used to average price or
+// renewable share across a charging window that may span multiple hours.
+function weightedHourly(start, end, lookup) {
+  const totalMs = end - start;
+  if (totalMs <= 0) return lookup(start);
+  let acc = 0;
+  let cursor = new Date(start);
+  while (cursor < end) {
+    const nextHour = new Date(cursor);
+    nextHour.setMinutes(60, 0, 0);
+    const segmentEnd = nextHour < end ? nextHour : end;
+    const segmentMs = segmentEnd - cursor;
+    acc += (segmentMs / totalMs) * lookup(cursor);
+    cursor = segmentEnd;
   }
-
-  return weighted / totalMs;
+  return acc;
 }
 
-// ---- CO2 / "eco" scoring -------------------------------------------------
-
-// Scaling factor that makes the CO2 term comparable in magnitude to the
-// price term. The exact number isn't physically meaningful — it's tuned
-// so that, with energy and power figures typical for our chargers
-// (10–60 kWh, 7–150 kW), the CO2 score lands in the same ballpark as
-// the electricity bill. Increase to make CO2-conscious users prefer
-// slow chargers more strongly.
-const CO2_FACTOR = 0.0008;
-
-// Relative environmental cost of charging `energyKWh` at a charger of
-// `chargerPowerKW`. Linear in both:
-//   - More energy ⇒ more total emissions.
-//   - Higher kW ⇒ more instantaneous grid load, which (especially at
-//     peak times) is more likely to come from dirtier peaker plants.
-// A user who weights `co2` highly will see slow chargers picked over
-// fast ones for the same booking.
-function co2ScoreForCharge(energyKWh, chargerPowerKW) {
-  if (!chargerPowerKW || chargerPowerKW <= 0) return 0;
-  return energyKWh * chargerPowerKW * CO2_FACTOR;
-}
+const avgPrice = (start, end) => weightedHourly(start, end, getPrice);
+const avgRenewable = (start, end) => weightedHourly(start, end, getRenewable);
 
 module.exports = {
-  priceAtEurPerKWh,
-  averagePriceOverInterval,
-  co2ScoreForCharge,
-  TOU_BANDS,
-  CO2_FACTOR,
+  WEEKDAY_PRICES,
+  WEEKEND_PRICES,
+  RENEWABLE_SHARE,
+  getPrice,
+  getRenewable,
+  avgPrice,
+  avgRenewable,
 };

@@ -8,7 +8,12 @@ import {
   View,
 } from "react-native";
 import { useApiErrorHandler } from "../contexts/AuthContext";
-import { cancelBooking, getMyBookings } from "../services/bookingService";
+import {
+  acceptReschedule,
+  cancelBooking,
+  getMyBookings,
+  rejectReschedule,
+} from "../services/bookingService";
 import BookingCard from "./booking/BookingCard";
 import styles from "./booking/styles";
 
@@ -54,6 +59,26 @@ export default function MyBookingsModal({ visible, onClose, token }) {
     }
   };
 
+  const handleAcceptReschedule = async (id) => {
+    try {
+      await acceptReschedule(id, token);
+      await reload();
+    } catch (err) {
+      if (await handleApiError(err)) return;
+      console.warn("Failed to accept reschedule:", err);
+    }
+  };
+
+  const handleRejectReschedule = async (id) => {
+    try {
+      await rejectReschedule(id, token);
+      await reload();
+    } catch (err) {
+      if (await handleApiError(err)) return;
+      console.warn("Failed to reject reschedule:", err);
+    }
+  };
+
   return (
     <Modal
       visible={visible}
@@ -93,6 +118,12 @@ export default function MyBookingsModal({ visible, onClose, token }) {
                   key={booking._id}
                   booking={booking}
                   onCancel={() => handleCancel(booking._id)}
+                  onAcceptReschedule={() =>
+                    handleAcceptReschedule(booking._id)
+                  }
+                  onRejectReschedule={() =>
+                    handleRejectReschedule(booking._id)
+                  }
                 />
               ))}
             </ScrollView>

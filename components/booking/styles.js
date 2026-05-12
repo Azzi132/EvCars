@@ -139,6 +139,13 @@ export default StyleSheet.create({
   },
   primaryButtonDisabled: { backgroundColor: "#A5D6A7" },
   primaryButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  // Secondary variant — used when a step needs two CTAs.
+  primaryButtonOutline: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#2E7D32",
+  },
+  primaryButtonOutlineText: { color: "#2E7D32" },
   errorInline: { marginTop: 12, color: "#B71C1C", fontSize: 13 },
 
   // ---- MyBookings card list --------------------------------------------
@@ -192,4 +199,43 @@ export default StyleSheet.create({
     paddingVertical: 6,
   },
   cancelText: { color: "#D32F2F", fontSize: 12, fontWeight: "600" },
+
+  // ---- Reschedule proposal banner --------------------------------------
+
+  rescheduleBanner: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: "#E8F5E9",
+    borderWidth: 1,
+    borderColor: "#A5D6A7",
+  },
+  rescheduleTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#2E7D32",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  rescheduleText: { fontSize: 13, color: "#2E3B2E", marginTop: 4 },
+  rescheduleButtons: {
+    flexDirection: "row",
+    marginTop: 10,
+  },
+  acceptButton: {
+    backgroundColor: "#2E7D32",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginRight: 8,
+  },
+  acceptText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  declineButton: {
+    borderWidth: 1,
+    borderColor: "#B71C1C",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  declineText: { color: "#B71C1C", fontSize: 12, fontWeight: "600" },
 });
