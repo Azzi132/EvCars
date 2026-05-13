@@ -13,16 +13,16 @@ import {
 import API_URL from "../config";
 import { useAuth } from "../contexts/AuthContext";
 
-export default function LoginScreen() {
+export default function RegisterScreen() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const { token, isLoading, login } = useAuth();
   const router = useRouter();
 
-  // If the user is already logged in skip
   useEffect(() => {
     if (!isLoading && token) {
       router.replace("/map");
@@ -37,9 +37,17 @@ export default function LoginScreen() {
     );
   }
 
-  const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) {
-      setError("Missing either username or password");
+  const handleRegister = async () => {
+    if (!username.trim() || !password.trim() || !confirmPassword.trim()) {
+      setError("Please fill in all fields");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
       return;
     }
 
@@ -47,7 +55,7 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/auth/login`, {
+      const res = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: username.trim(), password }),
@@ -56,12 +64,11 @@ export default function LoginScreen() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.message || "Login failed");
+        setError(data.message || "Registration failed");
         setLoading(false);
         return;
       }
 
-      // Save token to skip login next time
       await login(data.token);
       router.replace("/map");
     } catch (err) {
@@ -77,7 +84,7 @@ export default function LoginScreen() {
     >
       <View style={styles.card}>
         <Text style={styles.title}>EvCars</Text>
-        <Text style={styles.subtitle}>Smart EV Charging</Text>
+        <Text style={styles.subtitle}>Create your account</Text>
 
         <TextInput
           style={styles.input}
@@ -98,22 +105,31 @@ export default function LoginScreen() {
           onChangeText={setPassword}
         />
 
+        <TextInput
+          style={styles.input}
+          placeholder="Confirm password"
+          placeholderTextColor="#999"
+          secureTextEntry
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+        />
+
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleLogin}
+          onPress={handleRegister}
           disabled={loading}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Log In</Text>
+            <Text style={styles.buttonText}>Sign Up</Text>
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push("/register")} disabled={loading}>
-          <Text style={styles.linkText}>Don&apos;t have an account? Sign up</Text>
+        <TouchableOpacity onPress={() => router.replace("/")} disabled={loading}>
+          <Text style={styles.linkText}>Already have an account? Log in</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
