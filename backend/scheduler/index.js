@@ -23,11 +23,11 @@ async function run() {
 
     // 1. Promote scheduled→in_progress and in_progress→completed first
     //    so freshly-vacated slots are visible to the rest of the tick.
-    await Booking.updateMany(
+    const startedRes = await Booking.updateMany(
       { status: "scheduled", "assignment.startTime": { $lte: now } },
       { $set: { status: "in_progress" } },
     );
-    await Booking.updateMany(
+    const completedRes = await Booking.updateMany(
       { status: "in_progress", "assignment.endTime": { $lte: now } },
       { $set: { status: "completed" } },
     );
@@ -38,12 +38,25 @@ async function run() {
     //    those rows would surprise the user with a booking they thought
     //    was abandoned.
     const queue = await Booking.find({ status: "pending" });
+    let assigned = 0;
+    let infeasible = 0;
     for (const doc of queue) {
-      await assignPending(doc);
+      const res = await assignPending(doc);
+      if (res) assigned++;
+      else infeasible++;
     }
 
     // 3. Look for earlier slots for already-scheduled bookings.
-    await tickReoptimize();
+    const { proposed, cleared } = await tickReoptimize();
+
+    const started = startedRes.modifiedCount || 0;
+    const completed = completedRes.modifiedCount || 0;
+    const pending = queue.length;
+    if (started || completed || pending || proposed || cleared) {
+      console.log(
+        `[scheduler] started:${started} completed:${completed} pending:${pending} assigned:${assigned} infeasible:${infeasible} proposed:${proposed} cleared:${cleared}`,
+      );
+    }
   } catch (err) {
     console.error("Scheduler tick error:", err);
   } finally {
@@ -57,7 +70,7 @@ async function run() {
 
 function start() {
   if (timer) return;
-  console.log(`Scheduler started (tick every ${TICK_INTERVAL_MS}ms)`);
+  console.log(`[scheduler] started — tick every ${TICK_INTERVAL_MS / 1000}s`);
   timer = setInterval(run, TICK_INTERVAL_MS);
   run();
 }
