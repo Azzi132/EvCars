@@ -1,12 +1,3 @@
-// findBestSlot: the heart of the scheduler. Pure function — no DB I/O.
-// Hand it a request plus the bookings already pinned to its station and
-// it returns the best candidate slot, or null if nothing fits inside the
-// user's wait window.
-//
-// Tiebreak order: lower score, then earlier start, then lower powerKW.
-// The powerKW tiebreak prefers slower chargers when scores match, which
-// is consistent with the eco-favouring direction of the cost function.
-
 const { generateCandidates } = require("./candidates");
 
 function findBestSlot({

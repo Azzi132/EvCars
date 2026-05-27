@@ -14,9 +14,6 @@ import MyBookingsModal from "../components/MyBookingsModal";
 import { useAuth } from "../contexts/AuthContext";
 import { fetchNearbyStations } from "../services/stationService";
 
-// Default center used until a real fix arrives — Sarajevo, BiH.
-// The map renders here instantly; nearby stations are fetched as soon as
-// any location source returns coordinates.
 const DEFAULT_REGION = {
   latitude: 43.8563,
   longitude: 18.4131,
@@ -76,7 +73,6 @@ export default function MapScreen() {
       loadStations(coords.latitude, coords.longitude);
     };
 
-    // Always seed stations for the default region so the map isn't empty.
     loadStations(DEFAULT_REGION.latitude, DEFAULT_REGION.longitude);
 
     (async () => {
@@ -84,9 +80,6 @@ export default function MapScreen() {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (cancelled || status !== "granted") return;
 
-        // Fire all three location sources in parallel — whichever returns
-        // first wins. None of them blocks the UI because the map already
-        // rendered with DEFAULT_REGION.
         Location.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000 })
           .then((last) => last && applyCoords(last.coords))
           .catch((err) => console.warn("getLastKnownPositionAsync:", err));
@@ -106,7 +99,6 @@ export default function MapScreen() {
             },
             (loc) => {
               applyCoords(loc.coords);
-              // Once we have a real fix, stop watching to save battery.
               if (gotRealFix && watchSub) {
                 watchSub.remove();
                 watchSub = null;

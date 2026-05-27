@@ -1,23 +1,3 @@
-// Booking flow shell — owns the step state, the form fields, and the
-// submission to the backend. Each step is its own component (StationStep,
-// PreferencesStep, SchedulingStep, ResultStep); this file just decides
-// which one to render.
-//
-// Flow (4 steps):
-//   "stations"    → user picks a nearby station
-//   "preferences" → user sets energy / wait window / price-vs-CO2 weights
-//   "scheduling"  → spinner while the scheduler runs (polling via hook)
-//   "assigned" or "infeasible" → final outcome
-//
-// State that lives here (not in step components):
-//   - which step is showing
-//   - the in-flight form values (energy, maxWaitHours, weights)
-//   - the id of the booking we just POSTed (the polling hook watches it)
-//
-// We POST in `handleSubmit`, drop into the scheduling step, and then
-// `useBookingPolling` (running in BookingModal's render via the hook)
-// flips us to "assigned" or "infeasible" when an answer arrives.
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal, View } from "react-native";
 import { useApiErrorHandler } from "../../contexts/AuthContext";
@@ -48,28 +28,18 @@ export default function BookingModal({
   token,
   onBookingCreated,
 }) {
-  // ---- form state ------------------------------------------------------
   const [step, setStep] = useState("stations");
   const [selectedStation, setSelectedStation] = useState(null);
   const [energyKWh, setEnergyKWh] = useState("20");
   const [maxWaitHours, setMaxWaitHours] = useState(2);
-  // Two independent priority toggles. Either, both, or neither can be on:
-  //   cheap only → {price:1, co2:0}
-  //   eco only   → {price:0, co2:1}
-  //   both/none  → balanced 50/50
   const [cheapOn, setCheapOn] = useState(false);
   const [ecoOn, setEcoOn] = useState(false);
-
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [pendingBookingId, setPendingBookingId] = useState(null);
-  // Tracks which booking we've already announced to the parent so that
-  // re-renders (which give us a new onBookingCreated reference) don't
-  // re-fire the callback and re-open MyBookings after the user dismisses it.
   const notifiedForBookingRef = useRef(null);
   const handleApiError = useApiErrorHandler();
 
-  // Show only the 5 closest stations.
   const nearestStations = useMemo(() => {
     return [...(stations || [])]
       .filter((s) => typeof s.distanceKM === "number")
@@ -77,8 +47,6 @@ export default function BookingModal({
       .slice(0, 5);
   }, [stations]);
 
-  // Reset everything when the modal opens — `visible` toggles, the
-  // component itself stays mounted.
   useEffect(() => {
     if (!visible) return;
     setStep("stations");
@@ -91,22 +59,11 @@ export default function BookingModal({
     setPendingBookingId(null);
   }, [visible]);
 
-  // ---- polling (delegated to hook) -------------------------------------
   const { outcome, booking: assignedBooking } = useBookingPolling(
     pendingBookingId,
     token,
   );
 
-  // React to the polling outcome by transitioning step. Two guards:
-  //
-  //   1. `!pendingBookingId` — no booking in flight, ignore stale outcome.
-  //   2. `notifiedForBookingRef.current === pendingBookingId` — we have
-  //      already handled the terminal transition for this booking. Re-
-  //      running setStep here would clobber the reset effect's
-  //      setStep("stations") on the next reopen (effects fire in
-  //      declaration order in the same cycle; state updates haven't
-  //      applied yet) and stick the modal on a ResultStep whose
-  //      `booking` has since been cleared to null → white screen.
   useEffect(() => {
     if (!pendingBookingId) return;
     if (notifiedForBookingRef.current === pendingBookingId) return;
@@ -117,10 +74,6 @@ export default function BookingModal({
       setStep("preferences");
     }
 
-    // Mark the booking as handled either way so a reopen doesn't re-fire
-    // setStep with stale outcome. But MyBookings only opens for a real
-    // assignment — infeasible stays inside the booking flow so the user
-    // can either pick another station or adjust preferences.
     const isTerminal = outcome === "assigned" || outcome === "infeasible";
     if (isTerminal) {
       notifiedForBookingRef.current = pendingBookingId;
@@ -130,11 +83,6 @@ export default function BookingModal({
     }
   }, [outcome, pendingBookingId, onBookingCreated]);
 
-  // ---- infeasible recovery --------------------------------------------
-
-  // When no slot can be found, the user picks one of two paths back.
-  // The backend has already deleted the booking doc (assignPending does
-  // that when findBestSlot returns null), so this is purely local state.
   const handleInfeasibleExit = (nextStep) => {
     setPendingBookingId(null);
     notifiedForBookingRef.current = null;
@@ -142,8 +90,6 @@ export default function BookingModal({
     if (nextStep === "stations") setSelectedStation(null);
     setStep(nextStep);
   };
-
-  // ---- submit ----------------------------------------------------------
 
   const handleSubmit = async () => {
     if (!selectedStation) return;
@@ -153,8 +99,6 @@ export default function BookingModal({
       return;
     }
 
-    // Collapse the two toggles into the {price, co2} weights the backend
-    // expects. Both-on and neither-on both fall through to a balanced split.
     const preferences =
       cheapOn && !ecoOn
         ? { price: 1, co2: 0 }
@@ -162,9 +106,6 @@ export default function BookingModal({
           ? { price: 0, co2: 1 }
           : { price: 0.5, co2: 0.5 };
 
-    // Convert the station's connectors into the candidate-charger shape
-    // the backend expects. Drop any connector that doesn't report power
-    // — the scheduler can't reason about charging time without it.
     const candidateChargers = (selectedStation.connectors || [])
       .filter((c) => c.powerKW && c.powerKW > 0)
       .map((c) => ({
@@ -204,8 +145,6 @@ export default function BookingModal({
       setSubmitting(false);
     }
   };
-
-  // ---- render ----------------------------------------------------------
 
   return (
     <Modal

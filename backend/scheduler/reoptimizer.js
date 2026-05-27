@@ -1,12 +1,3 @@
-// Look for strictly-earlier slots for already-scheduled bookings and
-// write them as proposals. We never silently move a confirmed booking;
-// the user accepts or rejects the proposal in the My Bookings UI.
-//
-// Run once per scheduler tick. Walks distinct stations, then per-station
-// processes future bookings in earliest-start order so an earlier
-// booking's freed-up slot can be picked up by a later one in the same
-// pass.
-
 const Booking = require("./models");
 const { findBestSlot } = require("./scheduler");
 const { PROPOSAL_MIN_GAIN_MIN } = require("./config");

@@ -40,7 +40,6 @@ export default function MyBookingsModal({ visible, onClose, token }) {
     }
   };
 
-  // Reload immediately on open, then poll every 5s while open.
   useEffect(() => {
     if (!visible) return;
     reload();
@@ -51,7 +50,6 @@ export default function MyBookingsModal({ visible, onClose, token }) {
   const handleCancel = async (id) => {
     try {
       await cancelBooking(id, token);
-      // Reload so that the cancelled booking disappears instantly
       await reload();
     } catch (err) {
       if (await handleApiError(err)) return;
@@ -118,12 +116,8 @@ export default function MyBookingsModal({ visible, onClose, token }) {
                   key={booking._id}
                   booking={booking}
                   onCancel={() => handleCancel(booking._id)}
-                  onAcceptReschedule={() =>
-                    handleAcceptReschedule(booking._id)
-                  }
-                  onRejectReschedule={() =>
-                    handleRejectReschedule(booking._id)
-                  }
+                  onAcceptReschedule={() => handleAcceptReschedule(booking._id)}
+                  onRejectReschedule={() => handleRejectReschedule(booking._id)}
                 />
               ))}
             </ScrollView>

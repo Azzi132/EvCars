@@ -1,20 +1,3 @@
-// Step 2 of the booking flow: tell the scheduler what you need.
-//
-// Three things to set:
-//   1. Energy needed (kWh) — preset chips for common amounts plus a free
-//      input for anything else.
-//   2. How long you're willing to wait — chip selection mapping to
-//      `maxWaitHours`. This *is* the user's deadline; the scheduler must
-//      finish charging within this window or the booking goes infeasible.
-//   3. Two priority toggles — Cheap electricity and Eco-friendly. Either,
-//      both, or neither can be on; BookingModal collapses them into the
-//      {price, co2} weights the backend expects.
-//
-// We don't show a deadline date picker here. The wait-window chips are
-// easier to reason about ("within 2 hours") and they cover the realistic
-// range — if you need a charge in two days, that's not a use case the
-// app is built for.
-
 import {
   ActivityIndicator,
   ScrollView,
@@ -118,9 +101,7 @@ export default function PreferencesStep({
             style={[styles.chip, cheapOn && styles.chipActive]}
             onPress={() => setCheapOn((v) => !v)}
           >
-            <Text
-              style={[styles.chipText, cheapOn && styles.chipTextActive]}
-            >
+            <Text style={[styles.chipText, cheapOn && styles.chipTextActive]}>
               Cheap electricity
             </Text>
           </TouchableOpacity>

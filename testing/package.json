@@ -1,0 +1,20 @@
+{
+  "name": "evcars-testing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone scalability experiments for the EvCars scheduler (report section 6.5).",
+  "scripts": {
+    "exp1": "node exp1_scheduler_latency_vs_load.js",
+    "exp2": "node exp2_http_concurrent_bookings.js",
+    "exp3": "node exp3_full_system_scale.js",
+    "exp4": "node exp4_concurrent_at_production_scale.js",
+    "all": "npm run exp1 && npm run exp2 && npm run exp3 && npm run exp4"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "mongoose": "^8.8.0"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.1.2"
+  }
+}

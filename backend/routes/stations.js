@@ -1,11 +1,3 @@
-// Thin proxy in front of the Open Charge Map (OCM) public API.
-//
-// The mobile app calls /api/stations/nearby and we translate that into an
-// OCM POI lookup, then flatten OCM's verbose schema into the small object
-// shape the client actually uses (see services/stationService.js on the
-// frontend). Going through the backend keeps the OCM API key off the
-// device and gives us a single place to reshape the response.
-
 const express = require("express");
 
 const router = express.Router();
@@ -25,8 +17,6 @@ router.get("/nearby", async (req, res) => {
   }
 
   try {
-    // Build the OCM URL. `compact=true&verbose=false` keeps the response
-    // small, which matters because we forward it over a mobile connection.
     const url = new URL(OCM_BASE_URL);
     url.searchParams.set("output", "json");
     url.searchParams.set("latitude", lat);
@@ -42,7 +32,7 @@ router.get("/nearby", async (req, res) => {
 
     if (!ocmRes.ok) {
       console.error(
-        `OCM upstream error: ${ocmRes.status} ${ocmRes.statusText}`
+        `OCM upstream error: ${ocmRes.status} ${ocmRes.statusText}`,
       );
       return res
         .status(502)
@@ -51,13 +41,11 @@ router.get("/nearby", async (req, res) => {
 
     const pois = await ocmRes.json();
 
-    // Drop POIs without coordinates (they can't be placed on the map) and
-    // reshape what's left into the flat schema the frontend expects.
     const stations = pois
       .filter(
         (poi) =>
           poi?.AddressInfo?.Latitude != null &&
-          poi?.AddressInfo?.Longitude != null
+          poi?.AddressInfo?.Longitude != null,
       )
       .map((poi) => {
         const connections = poi.Connections ?? [];
@@ -90,8 +78,7 @@ router.get("/nearby", async (req, res) => {
               ? poi.AddressInfo.Distance
               : null,
           operator: poi.OperatorInfo?.Title ?? null,
-          connectorCount:
-            poi.NumberOfPoints ?? connections.length ?? 0,
+          connectorCount: poi.NumberOfPoints ?? connections.length ?? 0,
           maxPowerKW,
           statusTitle: poi.StatusType?.Title ?? null,
           usageType: poi.UsageType?.Title ?? null,

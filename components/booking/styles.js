@@ -1,22 +1,6 @@
-// Shared styles for the booking flow.
-//
-// Both BookingModal and MyBookingsModal slide up from the bottom and share
-// the same visual shell (rounded sheet, header with title + close button,
-// scrollable body). The shell styles are reused; each modal then layers
-// its own content styles on top.
-//
-// Why a single file:
-//   - Keeps the visual language consistent without prop-drilling style
-//     objects through every step component.
-//   - The booking step files (StationStep, PreferencesStep, etc.) all
-//     import the same `styles` object, so reading any one step is enough
-//     to recognise the look.
-
 import { StyleSheet } from "react-native";
 
 export default StyleSheet.create({
-  // ---- Shell (overlay + sliding sheet + header) -------------------------
-
   overlay: {
     flex: 1,
     justifyContent: "flex-end",
@@ -64,8 +48,6 @@ export default StyleSheet.create({
   },
   closeText: { fontSize: 20, color: "#555", lineHeight: 22, fontWeight: "600" },
 
-  // ---- Common body states ----------------------------------------------
-
   centered: {
     flex: 1,
     justifyContent: "center",
@@ -75,8 +57,6 @@ export default StyleSheet.create({
   emptyText: { color: "#777", fontSize: 14, textAlign: "center" },
   emptySubtext: { color: "#888", fontSize: 13, marginTop: 6 },
   errorText: { color: "#B71C1C", fontSize: 14, textAlign: "center" },
-
-  // ---- Station list (BookingModal step 1) ------------------------------
 
   stationList: { paddingHorizontal: 16, paddingVertical: 8 },
   stationRow: {
@@ -91,8 +71,6 @@ export default StyleSheet.create({
   stationRowTitle: { fontSize: 15, fontWeight: "600", color: "#222" },
   stationRowSubtitle: { fontSize: 12, color: "#777", marginTop: 2 },
   chevron: { fontSize: 22, color: "#BBB", marginLeft: 8 },
-
-  // ---- Preferences form (BookingModal step 2) --------------------------
 
   prefBody: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
   sectionLabel: {
@@ -128,7 +106,6 @@ export default StyleSheet.create({
   chipText: { color: "#555", fontSize: 14, fontWeight: "500" },
   chipTextActive: { color: "#fff" },
 
-  // Submit / primary CTA at the bottom of a step.
   primaryButton: {
     marginHorizontal: 20,
     marginTop: 8,
@@ -139,7 +116,6 @@ export default StyleSheet.create({
   },
   primaryButtonDisabled: { backgroundColor: "#A5D6A7" },
   primaryButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  // Secondary variant — used when a step needs two CTAs.
   primaryButtonOutline: {
     backgroundColor: "#fff",
     borderWidth: 1,
@@ -147,8 +123,6 @@ export default StyleSheet.create({
   },
   primaryButtonOutlineText: { color: "#2E7D32" },
   errorInline: { marginTop: 12, color: "#B71C1C", fontSize: 13 },
-
-  // ---- MyBookings card list --------------------------------------------
 
   cardList: { paddingHorizontal: 16, paddingVertical: 12 },
   card: {
@@ -199,8 +173,6 @@ export default StyleSheet.create({
     paddingVertical: 6,
   },
   cancelText: { color: "#D32F2F", fontSize: 12, fontWeight: "600" },
-
-  // ---- Reschedule proposal banner --------------------------------------
 
   rescheduleBanner: {
     marginTop: 10,

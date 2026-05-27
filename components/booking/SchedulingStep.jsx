@@ -1,9 +1,3 @@
-// Step 3 of the booking flow: waiting for the scheduler to answer.
-//
-// Pure presentational. The polling logic lives in `useBookingPolling` —
-// when an answer arrives the parent flips `step` to "assigned" or
-// "infeasible" and this component unmounts.
-
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import styles from "./styles";
 
@@ -24,7 +18,9 @@ export default function SchedulingStep({ onClose }) {
         >
           The scheduler is weighing your request against others.
         </Text>
-        <Text style={styles.sectionHint}>This usually takes a few seconds.</Text>
+        <Text style={styles.sectionHint}>
+          This usually takes a few seconds.
+        </Text>
       </View>
     </>
   );

@@ -1,6 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
 const AuthContext = createContext(null);
 
@@ -36,11 +42,6 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-// Returns a handler that, when given an error from an authenticated API call,
-// clears the stored token and bounces to the login screen if the server said
-// the token was bad (401). Returns true when it handled the error so callers
-// can skip showing their own message. Errors without status === 401 pass
-// through untouched.
 export function useApiErrorHandler() {
   const { logout } = useAuth();
   const router = useRouter();

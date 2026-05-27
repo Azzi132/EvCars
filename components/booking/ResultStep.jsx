@@ -1,12 +1,3 @@
-// Step 4 of the booking flow: show the outcome.
-//
-// Two shapes:
-//   - "assigned" — scheduler found a slot. Show charger / time / cost /
-//     eco score so the user can sanity-check what they got.
-//   - "infeasible" — scheduler couldn't fit a slot inside the user's
-//     wait window. Send them back to the preferences step so they can
-//     loosen `maxWaitHours` and retry.
-
 import { Text, TouchableOpacity, View } from "react-native";
 import styles from "./styles";
 
@@ -65,8 +56,6 @@ function AssignedBody({ booking, onClose }) {
         <Text style={styles.sectionValue}>
           DKK {a.estimatedCostDkk.toFixed(2)}
         </Text>
-        {/* Eco score is a relative number, not absolute kg-CO2 — so we
-            show it without units. Lower is greener. */}
         {a.estimatedCo2Score != null ? (
           <Text style={styles.sectionHint}>
             Eco score: {a.estimatedCo2Score.toFixed(2)} (lower is greener)
@@ -91,8 +80,8 @@ function InfeasibleBody({ onClose, onPickStation, onAdjustPrefs }) {
         <Text
           style={[styles.sectionHint, { textAlign: "center", marginTop: 8 }]}
         >
-          Try a different station, or adjust your preferences so a time
-          can be found.
+          Try a different station, or adjust your preferences so a time can be
+          found.
         </Text>
       </View>
       <TouchableOpacity style={styles.primaryButton} onPress={onPickStation}>
@@ -102,7 +91,9 @@ function InfeasibleBody({ onClose, onPickStation, onAdjustPrefs }) {
         style={[styles.primaryButton, styles.primaryButtonOutline]}
         onPress={onAdjustPrefs}
       >
-        <Text style={[styles.primaryButtonText, styles.primaryButtonOutlineText]}>
+        <Text
+          style={[styles.primaryButtonText, styles.primaryButtonOutlineText]}
+        >
           Adjust preferences
         </Text>
       </TouchableOpacity>

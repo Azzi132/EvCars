@@ -1,8 +1,3 @@
-// The scheduler's background loop. Exposes the same start/trigger/stop
-// API the server.js + routes already import. Single-flight guard so
-// overlapping calls coalesce instead of racing — important because the
-// booking routes call trigger() on every create/cancel.
-
 const Booking = require("./models");
 const { TICK_INTERVAL_MS } = require("./config");
 const { assignPending } = require("./bookings");
@@ -21,8 +16,6 @@ async function run() {
   try {
     const now = new Date();
 
-    // 1. Promote scheduled→in_progress and in_progress→completed first
-    //    so freshly-vacated slots are visible to the rest of the tick.
     const startedRes = await Booking.updateMany(
       { status: "scheduled", "assignment.startTime": { $lte: now } },
       { $set: { status: "in_progress" } },
@@ -32,11 +25,6 @@ async function run() {
       { $set: { status: "completed" } },
     );
 
-    // 2. Assign any pending bookings. Infeasible is terminal — the user
-    //    has been shown the "no slot found" screen and has either picked
-    //    another station, adjusted preferences, or moved on. Reviving
-    //    those rows would surprise the user with a booking they thought
-    //    was abandoned.
     const queue = await Booking.find({ status: "pending" });
     let assigned = 0;
     let infeasible = 0;
@@ -46,7 +34,6 @@ async function run() {
       else infeasible++;
     }
 
-    // 3. Look for earlier slots for already-scheduled bookings.
     const { proposed, cleared } = await tickReoptimize();
 
     const started = startedRes.modifiedCount || 0;

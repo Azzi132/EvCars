@@ -1,21 +1,3 @@
-// Mongoose schema for charging bookings.
-//
-// A Booking captures both the user's *request* (which station, how much
-// energy, how long they're willing to wait, and what to optimise for)
-// and the scheduler's *answer* (which charger, what time slot, projected
-// cost). The same document transitions through statuses as the scheduler
-// runs and time passes:
-//
-//   pending → scheduled → in_progress → completed
-//                 ↓
-//             infeasible
-//                 ↓ (user)
-//             cancelled
-//
-// `assignment` is null until a slot is found; `proposedReschedule` is null
-// unless the reoptimizer has found a strictly-earlier alternative and is
-// waiting for the user to accept it.
-
 const mongoose = require("mongoose");
 
 const candidateChargerSchema = new mongoose.Schema(
@@ -42,18 +24,13 @@ const assignmentSchema = new mongoose.Schema(
     powerKW: { type: Number, required: true },
     startTime: { type: Date, required: true },
     endTime: { type: Date, required: true },
-    // Projected DKK for the energy delivered, averaged over [start, end).
     estimatedCostDkk: { type: Number, required: true },
-    // Relative eco score — proportional to powerKW × (1 - renewable share).
-    // Lower is greener.
     estimatedCo2Score: { type: Number, required: true, default: 0 },
     assignedAt: { type: Date, default: Date.now },
   },
   { _id: false },
 );
 
-// Strictly-earlier alternative slot found by the reoptimizer. Stored
-// separately from `assignment` so the user can accept or reject it.
 const proposedRescheduleSchema = new mongoose.Schema(
   {
     newStart: { type: Date, required: true },
@@ -89,7 +66,14 @@ const bookingSchema = new mongoose.Schema({
   preferences: { type: preferencesSchema, required: true },
   status: {
     type: String,
-    enum: ["pending", "scheduled", "in_progress", "completed", "cancelled", "infeasible"],
+    enum: [
+      "pending",
+      "scheduled",
+      "in_progress",
+      "completed",
+      "cancelled",
+      "infeasible",
+    ],
     default: "pending",
     index: true,
   },

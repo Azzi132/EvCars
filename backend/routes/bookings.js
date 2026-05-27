@@ -1,10 +1,3 @@
-// Booking routes — create, list, fetch, cancel, and check live availability.
-//
-// Every route here requires a valid JWT (see `router.use(auth)` below) and
-// is scoped to the authenticated user. Mutating routes (POST, DELETE) call
-// schedulerRunner.trigger() at the end so the scheduler re-evaluates
-// assignments quickly instead of waiting for the next periodic tick.
-
 const express = require("express");
 const mongoose = require("mongoose");
 const Booking = require("../scheduler/models");
@@ -16,12 +9,6 @@ const router = express.Router();
 
 router.use(auth);
 
-// ---------- validation ------------------------------------------------------
-
-// Returns null if the payload is acceptable, or a human-readable error
-// message if not. Validation here is the user-facing first line of
-// defence — Mongoose will catch type errors too, but its messages are
-// terse and not great UX.
 function validateCreatePayload(body) {
   const {
     stationId,
@@ -53,8 +40,6 @@ function validateCreatePayload(body) {
   if (!energyDemandKWh || energyDemandKWh <= 0) {
     return "energyDemandKWh must be > 0.";
   }
-  // 0.25h (15 min) lower bound matches the scheduler's slot grid; 168h
-  // (one week) upper bound stops a typo from queueing a booking forever.
   if (
     typeof maxWaitHours !== "number" ||
     maxWaitHours < 0.25 ||
@@ -75,13 +60,11 @@ function validateCreatePayload(body) {
       return `preferences.${key} must be in [0, 1].`;
     }
   }
-  // The model's pre-validate hook normalises weights and tolerates a
-  // {0, 0} input by falling back to 50/50, so we don't reject it here.
+
   return null;
 }
 
-// ---------- POST / -- create a new booking ---------------------------------
-
+// Create new booking
 router.post("/", async (req, res) => {
   try {
     const err = validateCreatePayload(req.body);
@@ -111,8 +94,6 @@ router.post("/", async (req, res) => {
       status: "pending",
     });
 
-    // Wake the scheduler so the user doesn't have to wait up to 30s for
-    // the next periodic tick to see their request.
     schedulerRunner.trigger();
 
     res.status(201).json(booking);
@@ -122,12 +103,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ---------- GET /mine -- list current user's active bookings --------------
-
-// "Active" means: still pending (so the user can see it being worked on),
-// or scheduled/in_progress with an end time still in the future.
-// Infeasible bookings are handled inside the booking flow itself — they
-// must not appear here. Completed and cancelled bookings also drop out.
+// Get users current active bookings
 router.get("/mine", async (req, res) => {
   try {
     const now = new Date();
@@ -149,11 +125,7 @@ router.get("/mine", async (req, res) => {
   }
 });
 
-// ---------- GET /availability -- which chargers are busy right now --------
-
-// The mobile app calls this to grey out chargers that are mid-charge.
-// Result shape: { [stationId]: [chargerId, chargerId, ...] }, with an
-// empty array for any requested station that has no current bookings.
+// Check which chargers are busy right now
 router.get("/availability", async (req, res) => {
   try {
     const raw = req.query.stationIds || "";
@@ -166,7 +138,6 @@ router.get("/availability", async (req, res) => {
       return res.json({});
     }
 
-    // "Busy" = has an assignment whose [start, end) interval contains now.
     const now = new Date();
     const busy = await Booking.find({
       stationId: { $in: ids },
@@ -192,8 +163,7 @@ router.get("/availability", async (req, res) => {
   }
 });
 
-// ---------- POST /:id/accept-reschedule -- adopt the proposed earlier slot --
-
+// Accepted proposed earlier time slot given by scheduler
 router.post("/:id/accept-reschedule", async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -203,7 +173,6 @@ router.post("/:id/accept-reschedule", async (req, res) => {
       req.params.id,
       req.userId,
     );
-    // The just-vacated slot may let other bookings move earlier too.
     schedulerRunner.trigger();
     res.json(booking);
   } catch (err) {
@@ -212,8 +181,7 @@ router.post("/:id/accept-reschedule", async (req, res) => {
   }
 });
 
-// ---------- POST /:id/reject-reschedule -- discard the proposal ------------
-
+// Reject earlier slot and delete it
 router.post("/:id/reject-reschedule", async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -230,15 +198,12 @@ router.post("/:id/reject-reschedule", async (req, res) => {
   }
 });
 
-// ---------- GET /:id -- fetch one of the user's bookings ------------------
-
+// Fetch one of the user's bookings, based on booking ID.
 router.get("/:id", async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ message: "Invalid booking id." });
     }
-    // Scope by userId so users can't read each other's bookings even if
-    // they guess an id.
     const booking = await Booking.findOne({
       _id: req.params.id,
       userId: req.userId,
@@ -251,8 +216,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// ---------- DELETE /:id -- cancel a booking -------------------------------
-
+// Cancel a booking based on it's ID.
 router.delete("/:id", async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -264,8 +228,6 @@ router.delete("/:id", async (req, res) => {
     });
     if (!booking) return res.status(404).json({ message: "Not found." });
 
-    // Once a charge has actually started or finished there's no sensible
-    // way to "cancel" it from the user's side.
     if (booking.status === "in_progress" || booking.status === "completed") {
       return res
         .status(409)
@@ -274,8 +236,6 @@ router.delete("/:id", async (req, res) => {
 
     await Booking.deleteOne({ _id: booking._id });
 
-    // Freeing this slot may let the scheduler give a better assignment
-    // to someone else — re-run it now instead of on the next tick.
     schedulerRunner.trigger();
 
     res.json({ _id: booking._id, deleted: true });

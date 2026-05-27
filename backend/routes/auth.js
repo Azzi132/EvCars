@@ -1,7 +1,3 @@
-// Authentication routes: public login and signup. Users created via /register
-// are stored in MongoDB with bcrypt-hashed passwords (cost factor 10, matching
-// the seed script in addUser.js). The seed script remains for bootstrapping.
-
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -14,8 +10,6 @@ router.post("/login", async (req, res) => {
     const { username, password } = req.body;
 
     const user = await User.findOne({ username });
-    // Same response for "user not found" and "wrong password" on purpose,
-    // so attackers can't probe the database for valid usernames.
     if (!user) {
       return res.status(401).json({ message: "Invalid username or password" });
     }
@@ -25,8 +19,6 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid username or password" });
     }
 
-    // 7 days is generous but fine for a dev/demo app — the client just
-    // stores this in AsyncStorage and uses it until the user logs out.
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
@@ -43,10 +35,14 @@ router.post("/register", async (req, res) => {
 
     const trimmedUsername = typeof username === "string" ? username.trim() : "";
     if (!trimmedUsername || typeof password !== "string" || !password) {
-      return res.status(400).json({ message: "Username and password are required" });
+      return res
+        .status(400)
+        .json({ message: "Username and password are required" });
     }
     if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters" });
     }
 
     const existing = await User.findOne({ username: trimmedUsername });
@@ -58,9 +54,11 @@ router.post("/register", async (req, res) => {
 
     let user;
     try {
-      user = await User.create({ username: trimmedUsername, password: hashedPassword });
+      user = await User.create({
+        username: trimmedUsername,
+        password: hashedPassword,
+      });
     } catch (err) {
-      // Race between findOne and create — the unique index caught a duplicate.
       if (err && err.code === 11000) {
         return res.status(409).json({ message: "Username already taken" });
       }
@@ -70,7 +68,9 @@ router.post("/register", async (req, res) => {
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
-    res.status(201).json({ token, user: { id: user._id, username: user.username } });
+    res
+      .status(201)
+      .json({ token, user: { id: user._id, username: user.username } });
   } catch (err) {
     console.error("Register error:", err);
     res.status(500).json({ message: "Server error" });
